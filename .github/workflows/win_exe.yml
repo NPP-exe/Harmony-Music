@@ -70,6 +70,15 @@ jobs:
           }
           cp "${{ github.workspace }}/win_cert/DigiCertGlobalRootCA.crt" .
           cp "${{ github.workspace }}/win_cert/cert.pem" .
+          
+          # Find legacy.dll for OpenSSL 3.0 legacy provider compatibility
+          $legacyDll = Get-ChildItem -Path "C:\Program Files\Git" -Filter "legacy.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($legacyDll) {
+            echo "OPENSSL_MODULES=$($legacyDll.DirectoryName)" >> $env:GITHUB_ENV
+            Write-Output "Found legacy.dll in $($legacyDll.DirectoryName). Set OPENSSL_MODULES in GITHUB_ENV."
+          } else {
+            Write-Warning "legacy.dll not found in C:\Program Files\Git!"
+          }
 
       - name: Sign executable
         working-directory: "${{ github.workspace }}/signed"
