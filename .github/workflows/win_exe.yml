@@ -62,7 +62,12 @@ jobs:
       - name: Collecting certs and key
         working-directory: "${{ github.workspace }}/signed"
         run: |
-          [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("${{ secrets.KEY_PEM }}")) | Out-File -FilePath key.pem -Encoding ASCII
+          $b64 = "${{ secrets.KEY_PEM }}".Trim()
+          if ($b64) {
+            [System.IO.File]::WriteAllBytes("key.pem", [System.Convert]::FromBase64String($b64))
+          } else {
+            throw "KEY_PEM secret is empty or not set in this repository!"
+          }
           cp "${{ github.workspace }}/win_cert/DigiCertGlobalRootCA.crt" .
           cp "${{ github.workspace }}/win_cert/cert.pem" .
 
