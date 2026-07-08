@@ -42,8 +42,8 @@ jobs:
           $lastSubDir = Get-ChildItem -Path "${{ github.workspace }}/dist" -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           $exeFile = Get-ChildItem -Path "$($lastSubDir.FullName)/*.exe" | Select-Object -First 1
           if ($exeFile) {
-              Write-Output "Found .exe file: $($exeFile.FullName)"
-              "exe_path=$($exeFile.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+              echo "Found .exe file: $($exeFile.FullName)"
+              echo "::set-output name=exe_path::$($exeFile.FullName)"
           } else {
               Write-Error "No .exe files found in the dist directory."
               exit 1
@@ -60,20 +60,18 @@ jobs:
         run: mkdir signed
 
       - name: Add signing PFX
-        if: ${{ secrets.SIGNING_PFX_B64 != '' }}
         working-directory: "${{ github.workspace }}/signed"
         run: |
           $b64 = "${{ secrets.SIGNING_PFX_B64 }}".Trim()
-          $bytes = [System.Convert]::FromBase64String($b64)
-          [System.IO.File]::WriteAllBytes("signing_cert.pfx", $bytes)
+          if ($b64) {
+            $bytes = [System.Convert]::FromBase64String($b64)
+            [System.IO.File]::WriteAllBytes("signing_cert.pfx", $bytes)
+          } else {
+            throw "SIGNING_PFX_B64 secret is empty or not set in this repository!"
+          }
           cp "${{ github.workspace }}/win_cert/DigiCertGlobalRootCA.crt" .
 
-      - name: Signing secret not set (informational)
-        if: ${{ secrets.SIGNING_PFX_B64 == '' }}
-        run: Write-Output "SIGNING_PFX_B64 is not set — skipping signing steps."
-
       - name: Sign executable (use PFX)
-        if: ${{ secrets.SIGNING_PFX_B64 != '' }}
         working-directory: "${{ github.workspace }}/signed"
         run: |
           $exePath = "${{ steps.find_exe.outputs.exe_path }}"
@@ -81,22 +79,13 @@ jobs:
           & "${{ github.workspace }}/osslsigncode/bin/osslsigncode.exe" sign -pkcs12 signing_cert.pfx -pass "${{ secrets.SIGNING_PFX_PASSWORD }}" -t http://timestamp.digicert.com -in "$exePath" -out "$signedExePath"
 
       - name: Verify signature
-        if: ${{ secrets.SIGNING_PFX_B64 != '' }}
         working-directory: "${{ github.workspace }}/signed"
         run: |
           $signedExePath = "${{ steps.find_exe.outputs.exe_path }}".Replace(".exe", "_signed.exe")
           & "${{ github.workspace }}/osslsigncode/bin/osslsigncode.exe" verify -in "$signedExePath" -TSA-CAfile DigiCertGlobalRootCA.crt
           
-      - name: Upload signed Windows exe artifact
-        if: ${{ secrets.SIGNING_PFX_B64 != '' }}
+      - name: Upload Windows exe artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Harmony music windows exe (signed)
-          path: "${{ github.workspace }}/dist/**/*_signed.exe"
-
-      - name: Upload unsigned Windows exe artifact
-        if: ${{ secrets.SIGNING_PFX_B64 == '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: Harmony music windows exe (unsigned)
-          path: "${{ github.workspace }}/dist/**/*.exe"
+          name: Harmony music windows exe
+          path: "${{ github.workspace }}/dist/**/*signed.exe"
