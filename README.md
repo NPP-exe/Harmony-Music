@@ -1,6 +1,6 @@
 <div align="center">
 
-
+# ✅**This repository is now actively maintained by @NPP-exe :)**
 
 </div>
 
@@ -32,7 +32,10 @@ A cross platform app for music streaming made with Flutter(Android, Windows, lin
 * Piped playlist integration
 
 
+# Download
+* This fork provides updated (fixed) Android APKs and Windows executables. Choose the appropriate asset for your platform.
 
+<a href="https://github.com/NPP-exe/Harmony-Music/releases/latest"><img src ="https://github.com/anandnet/Harmony-Music/blob/main/don_github.png" width = "250"></a> </a> 
 
 # Translation
 <a href="https://hosted.weblate.org/engage/harmony-music/">
