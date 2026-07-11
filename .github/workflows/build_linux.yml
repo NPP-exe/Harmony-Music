@@ -27,7 +27,7 @@ jobs:
         run: flutter config --enable-linux-desktop
 
       - name: Install Linux build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev pkg-config libayatana-appindicator3-dev
 
       - name: Install packages
         run: flutter pub get
