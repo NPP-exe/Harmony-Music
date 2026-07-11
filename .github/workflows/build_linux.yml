@@ -48,7 +48,7 @@ jobs:
 
       - name: Package Linux AppImage and DEB
         run: |
-          flutter_distributor package --platform linux --targets deb,appimage
+          dart pub global run flutter_distributor package --platform linux --targets deb,appimage
 
       - name: Upload Linux packages
         uses: actions/upload-artifact@v4
