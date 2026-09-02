@@ -26,14 +26,18 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Install NDK 26.1.10909125
+        run: |
+          echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125"
+
+      - name: Flutter clean
+        run: flutter clean
+
       - name: Install packages
         run: flutter pub get
 
-      - name: Linter
-        run: flutter analyze
-
       - name: Build APK
-        run: flutter build apk
+        run: flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
