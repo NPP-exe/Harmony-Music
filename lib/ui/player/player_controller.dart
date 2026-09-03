@@ -323,8 +323,13 @@ class PlayerController extends GetxController
   }
 
   ///pushSongToQueue method clears previous song queue, plays the tapped song and pushes related
-  ///songs into Queue. The watch playlist is fetched before playback starts to avoid a race
-  ///condition where the queue would be empty when the song begins playing.
+  ///songs into Queue.
+  ///
+  /// For regular song taps: playback starts IMMEDIATELY (no waiting on network),
+  /// then the related queue is fetched concurrently and added.
+  ///
+  /// For radio mode: queue is fetched first because radio needs the full list
+  /// loaded at index 0 before playback begins.
   Future<void> pushSongToQueue(MediaItem? mediaItem,
       {String? playlistid, bool radio = false}) async {
     /// update playing from value
@@ -335,29 +340,70 @@ class PlayerController extends GetxController
     /// set global radio mode flag
     isRadioModeOn = radio;
 
-    // Fetch the watch/radio playlist FIRST so the queue is populated before
-    // playback starts. The old Future.delayed wrapper caused a race where
-    // setSourceNPlay ran before updateQueue completed, leaving the queue empty.
-    final content = await _musicServices.getWatchPlaylist(
-        videoId: mediaItem?.id ?? "", radio: radio, playlistId: playlistid);
-    radioContinuationParam = content['additionalParamsForNext'];
+    // --- RADIO MODE: fetch queue first, then play ---
+    // Radio requires the full queue to be loaded starting at index 0.
+    if (radio) {
+      try {
+        final content = await _musicServices.getWatchPlaylist(
+            videoId: mediaItem?.id ?? "", radio: true, playlistId: playlistid);
+        radioContinuationParam = content['additionalParamsForNext'];
+        await _audioHandler
+            .updateQueue(List<MediaItem>.from(content['tracks']));
+      } catch (e) {
+        printERROR("pushSongToQueue radio fetch failed: $e");
+      }
 
-    await _audioHandler.updateQueue(List<MediaItem>.from(content['tracks']));
+      if (isShuffleModeEnabled.isTrue) {
+        await _audioHandler.customAction("shuffleCmd", {"index": 0});
+      }
 
-    if (isShuffleModeEnabled.isTrue) {
-      await _audioHandler.customAction("shuffleCmd", {"index": 0});
+      // Radio started on the currently-playing song — just update the queue display.
+      if (currentSong.value?.id == mediaItem?.id) {
+        _audioHandler
+            .customAction("upadateMediaItemInAudioService", {"index": 0});
+        // disable queue loop mode when radio is started
+        if (isQueueLoopModeEnabled.isTrue && isShuffleModeEnabled.isFalse) {
+          toggleQueueLoopMode();
+        }
+        return;
+      }
+
+      if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI") {
+        Get.find<HomeScreenController>()
+            .changeDiscoverContent("BOLI", songId: mediaItem!.id);
+      }
+
+      _playerPanelCheck();
+      await _audioHandler
+          .customAction("setSourceNPlay", {'mediaItem': mediaItem});
+
+      if (isQueueLoopModeEnabled.isTrue && isShuffleModeEnabled.isFalse) {
+        toggleQueueLoopMode();
+      }
+      return;
     }
 
-    // Broadcast current mediaItem via AudioService if radio started on
-    // the currently-playing song (queue list was just replaced).
-    if (radio && (currentSong.value?.id == mediaItem?.id)) {
-      _audioHandler
-          .customAction("upadateMediaItemInAudioService", {"index": 0});
-    }
-
+    // --- PLAYLIST MODE (playlistid != null): fetch queue first, play by index ---
     if (playlistid != null) {
+      try {
+        final content = await _musicServices.getWatchPlaylist(
+            videoId: mediaItem?.id ?? "",
+            radio: false,
+            playlistId: playlistid);
+        radioContinuationParam = content['additionalParamsForNext'];
+        await _audioHandler
+            .updateQueue(List<MediaItem>.from(content['tracks']));
+      } catch (e) {
+        printERROR("pushSongToQueue playlist fetch failed: $e");
+      }
+
+      if (isShuffleModeEnabled.isTrue) {
+        await _audioHandler.customAction("shuffleCmd", {"index": 0});
+      }
+
       _playerPanelCheck();
       await _audioHandler.customAction("playByIndex", {"index": 0});
+
       if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI") {
         Get.find<HomeScreenController>()
             .changeDiscoverContent("BOLI", songId: mediaItem!.id);
@@ -365,9 +411,10 @@ class PlayerController extends GetxController
       return;
     }
 
-    // If radio was started on the currently-playing song, no further action.
-    if (radio && (currentSong.value?.id == mediaItem?.id)) return;
-
+    // --- REGULAR SONG TAP: start playback immediately, fetch related queue in background ---
+    // Open the player panel and start the song right away so the user sees
+    // instant feedback. The related songs queue is fetched concurrently and
+    // appended after playback starts.
     if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI") {
       Get.find<HomeScreenController>()
           .changeDiscoverContent("BOLI", songId: mediaItem!.id);
@@ -377,13 +424,32 @@ class PlayerController extends GetxController
     await _audioHandler
         .customAction("setSourceNPlay", {'mediaItem': mediaItem});
 
-    // disable queue loop mode when radio is started
-    if (radio &&
-        isQueueLoopModeEnabled.isTrue &&
-        isShuffleModeEnabled.isFalse) {
-      toggleQueueLoopMode();
+    // Fetch the related/watch playlist concurrently — do NOT await here so
+    // playback is never blocked. Queue will be updated once fetch completes.
+    _fetchAndUpdateRelatedQueue(mediaItem, radio: false);
+  }
+
+  /// Fetches the watch/radio playlist for [mediaItem] and updates the queue.
+  /// Called in the background after playback has already started.
+  Future<void> _fetchAndUpdateRelatedQueue(MediaItem? mediaItem,
+      {bool radio = false}) async {
+    try {
+      final content = await _musicServices.getWatchPlaylist(
+          videoId: mediaItem?.id ?? "", radio: radio);
+      if (content['tracks'] == null || (content['tracks'] as List).isEmpty) {
+        return;
+      }
+      radioContinuationParam = content['additionalParamsForNext'];
+      await _audioHandler
+          .updateQueue(List<MediaItem>.from(content['tracks']));
+      if (isShuffleModeEnabled.isTrue) {
+        await _audioHandler.customAction("shuffleCmd", {"index": 0});
+      }
+    } catch (e) {
+      printERROR("_fetchAndUpdateRelatedQueue failed: $e");
     }
   }
+
 
   Future<void> playPlayListSong(List<MediaItem> mediaItems, int index,
       {PlaylingFrom? playfrom}) async {
