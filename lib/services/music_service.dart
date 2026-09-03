@@ -273,19 +273,31 @@ class MusicServices extends getx.GetxService {
         };
       }
 
-      results.addAll(nav(watchNextRenderer, [
+      final playlistPanelRenderer = nav(watchNextRenderer, [
         ...tab_content,
         'musicQueueRenderer',
         'content',
         'playlistPanelRenderer'
-      ]));
-      playlist = results['contents']
-          .map((content) => nav(content,
+      ]);
+      if (playlistPanelRenderer == null) {
+        return {
+          'tracks': tracks,
+          'playlistId': playlist,
+          'lyrics': lyricsBrowseId,
+          'related': relatedBrowseId,
+          'additionalParamsForNext': null
+        };
+      }
+      results.addAll(playlistPanelRenderer);
+      final playlistItems = (results['contents'] as List?)
+          ?.map((content) => nav(content,
               ['playlistPanelVideoRenderer', ...navigation_playlist_id]))
           .where((e) => e != null)
-          .toList()
-          .first;
-      tracks.addAll(parseWatchPlaylist(results['contents']));
+          .toList();
+      playlist = (playlistItems != null && playlistItems.isNotEmpty)
+          ? playlistItems.first
+          : null;
+      tracks.addAll(parseWatchPlaylist(results['contents'] ?? []));
     }
 
     dynamic additionalParamsForNext;

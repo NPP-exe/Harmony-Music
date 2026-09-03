@@ -1,0 +1,108 @@
+﻿{
+    "responseContext":  {
+                            "visitorData":  "CgtnWXpNaWdTSURLOCj8keXUBjIKCgJJThIEGgAgQw%3D%3D",
+                            "serviceTrackingParams":  [
+                                                          {
+                                                              "service":  "CSI",
+                                                              "params":  [
+                                                                             {
+                                                                                 "key":  "c",
+                                                                                 "value":  "WEB_REMIX"
+                                                                             },
+                                                                             {
+                                                                                 "key":  "cver",
+                                                                                 "value":  "1.20231204.01.00"
+                                                                             },
+                                                                             {
+                                                                                 "key":  "yt_li",
+                                                                                 "value":  "0"
+                                                                             },
+                                                                             {
+                                                                                 "key":  "GetWatchPage_rid",
+                                                                                 "value":  "0x503a7a1653ed6d0e"
+                                                                             }
+                                                                         ]
+                                                          },
+                                                          {
+                                                              "service":  "GFEEDBACK",
+                                                              "params":  [
+                                                                             {
+                                                                                 "key":  "logged_in",
+                                                                                 "value":  "0"
+                                                                             }
+                                                                         ]
+                                                          },
+                                                          {
+                                                              "service":  "ECATCHER",
+                                                              "params":  [
+                                                                             {
+                                                                                 "key":  "client.version",
+                                                                                 "value":  "1.20000101"
+                                                                             },
+                                                                             {
+                                                                                 "key":  "client.name",
+                                                                                 "value":  "WEB_REMIX"
+                                                                             }
+                                                                         ]
+                                                          }
+                                                      ],
+                            "responseId":  "IhMIgKi9j5fSlgMVf5CsAh1qwCIh"
+                        },
+    "contents":  {
+                     "singleColumnMusicWatchNextResultsRenderer":  {
+                                                                       "tabbedRenderer":  {
+                                                                                              "watchNextTabbedResultsRenderer":  {
+                                                                                                                                     "tabs":  [
+                                                                                                                                                  "@{tabRenderer=}",
+                                                                                                                                                  "@{tabRenderer=}",
+                                                                                                                                                  "@{tabRenderer=}",
+                                                                                                                                                  "@{tabRenderer=}"
+                                                                                                                                              ]
+                                                                                                                                 }
+                                                                                          }
+                                                                   }
+                 },
+    "currentVideoEndpoint":  {
+                                 "clickTrackingParams":  "CAAQg2ciEwiAqL2Pl9KWAxV_kKwCHWrAIiHKAQSQ_1Ay",
+                                 "watchEndpoint":  {
+                                                       "videoId":  "sV23dO1fI_s",
+                                                       "playlistId":  "RDAMVMsV23dO1fI_s",
+                                                       "index":  0,
+                                                       "playerParams":  "ygYQMjg5RjRBNDZERjBBMzBEMg%3D%3D",
+                                                       "playlistSetVideoId":  "289F4A46DF0A30D2",
+                                                       "loggingContext":  {
+                                                                              "vssLoggingContext":  {
+                                                                                                        "serializedContextData":  "GhFSREFNVk1zVjIzZE8xZklfcw%3D%3D"
+                                                                                                    }
+                                                                          }
+                                                   }
+                             },
+    "trackingParams":  "CAAQg2ciEwiAqL2Pl9KWAxV_kKwCHWrAIiHKAQSQ_1Ay",
+    "playerOverlays":  {
+                           "playerOverlayRenderer":  {
+                                                         "actions":  [
+                                                                         {
+                                                                             "likeButtonRenderer":  {
+                                                                                                        "target":  "@{videoId=TUt055_Yqew}",
+                                                                                                        "likeStatus":  "INDIFFERENT",
+                                                                                                        "trackingParams":  "CAEQpUEYACITCICovY-X0pYDFX-QrAIdasAiIQ==",
+                                                                                                        "likesAllowed":  true,
+                                                                                                        "dislikeNavigationEndpoint":  "@{clickTrackingParams=CAEQpUEYACITCICovY-X0pYDFX-QrAIdasAiIcoBBJD_UDI=; modalEndpoint=}",
+                                                                                                        "likeCommand":  "@{clickTrackingParams=CAEQpUEYACITCICovY-X0pYDFX-QrAIdasAiIcoBBJD_UDI=; modalEndpoint=}"
+                                                                                                    }
+                                                                         }
+                                                                     ],
+                                                         "browserMediaSession":  {
+                                                                                     "browserMediaSessionRenderer":  {
+                                                                                                                         "album":  {
+                                                                                                                                       "runs":  ""
+                                                                                                                                   },
+                                                                                                                         "thumbnailDetails":  {
+                                                                                                                                                  "thumbnails":  "   "
+                                                                                                                                              }
+                                                                                                                     }
+                                                                                 }
+                                                     }
+                       },
+    "queueContextParams":  "CAIaEVJEQU1WTXNWMjNkTzFmSV9zIOCZzo-X0pYDMgtzVjIzZE8xZklfczoQMjg5RjRBNDZERjBBMzBEMkIRUkRBTVZNc1YyM2RPMWZJX3NQAVoECAAQAWIAcAF4AQ=="
+}

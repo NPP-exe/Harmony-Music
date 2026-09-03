@@ -434,13 +434,17 @@ class PlayerController extends GetxController
   Future<void> _fetchAndUpdateRelatedQueue(MediaItem? mediaItem,
       {bool radio = false}) async {
     try {
+      printINFO("_fetchAndUpdateRelatedQueue: fetching for videoId=${mediaItem?.id} radio=$radio");
       final content = await _musicServices.getWatchPlaylist(
           videoId: mediaItem?.id ?? "", radio: radio);
-      if (content['tracks'] == null || (content['tracks'] as List).isEmpty) {
+      final rawTracks = content['tracks'];
+      printINFO("_fetchAndUpdateRelatedQueue: got ${rawTracks?.length ?? 0} tracks");
+      if (rawTracks == null || (rawTracks as List).isEmpty) {
+        printINFO("_fetchAndUpdateRelatedQueue: no tracks returned, queue stays as-is");
         return;
       }
       radioContinuationParam = content['additionalParamsForNext'];
-      final fetchedTracks = List<MediaItem>.from(content['tracks']);
+      final fetchedTracks = List<MediaItem>.from(rawTracks);
 
       // Ensure the currently playing song is preserved at index 0
       final current = currentSong.value ?? mediaItem;
@@ -454,12 +458,14 @@ class PlayerController extends GetxController
         }
       }
 
+      printINFO("_fetchAndUpdateRelatedQueue: updating queue with ${newQueue.length} items");
       await _audioHandler.updateQueue(newQueue);
       if (isShuffleModeEnabled.isTrue) {
         await _audioHandler.customAction("shuffleCmd", {"index": 0});
       }
-    } catch (e) {
+    } catch (e, stack) {
       printERROR("_fetchAndUpdateRelatedQueue failed: $e");
+      printERROR("Stack: $stack");
     }
   }
 

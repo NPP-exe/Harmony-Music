@@ -418,24 +418,29 @@ List<dynamic> parseWatchPlaylist(List<dynamic> results) {
   const PPVWR = 'playlistPanelVideoWrapperRenderer';
   const PPVR = 'playlistPanelVideoRenderer';
   for (var result in results) {
-    Map<String, dynamic>? counterpart;
-    if (result.containsKey(PPVWR)) {
-      counterpart =
-          result[PPVWR]['counterpart'][0]['counterpartRenderer'][PPVR];
-      result = result[PPVWR]['primaryRenderer'];
-    }
-    if (!result.containsKey(PPVR)) {
+    try {
+      Map<String, dynamic>? counterpart;
+      if (result.containsKey(PPVWR)) {
+        counterpart =
+            result[PPVWR]['counterpart'][0]['counterpartRenderer'][PPVR];
+        result = result[PPVWR]['primaryRenderer'];
+      }
+      if (!result.containsKey(PPVR)) {
+        continue;
+      }
+      final data = result[PPVR];
+      if (data.containsKey('unplayableText')) {
+        continue;
+      }
+      final track = parseWatchTrack(data);
+      if (counterpart != null) {
+        track['counterpart'] = parseWatchTrack(counterpart);
+      }
+      tracks.add(MediaItemBuilder.fromJson(track));
+    } catch (_) {
+      // skip malformed track entry
       continue;
     }
-    final data = result[PPVR];
-    if (data.containsKey('unplayableText')) {
-      continue;
-    }
-    final track = parseWatchTrack(data);
-    if (counterpart != null) {
-      track['counterpart'] = parseWatchTrack(counterpart);
-    }
-    tracks.add(MediaItemBuilder.fromJson(track));
   }
   return tracks;
 }
