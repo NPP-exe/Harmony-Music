@@ -260,9 +260,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
 
   @override
   Future<void> updateQueue(List<MediaItem> queue) async {
-    final newQueue = this.queue.value
-      ..replaceRange(0, this.queue.value.length, queue);
-    this.queue.add(newQueue);
+    this.queue.add(List<MediaItem>.from(queue));
   }
 
   @override
@@ -666,7 +664,11 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         //added to update media item from player controller
         final songIndex = extras!['index'];
         currentIndex = songIndex;
-        mediaItem.add(queue.value[currentIndex]);
+        final currentSong = queue.value[currentIndex];
+        final songWithDuration = (_player.duration != null && _player.duration != Duration.zero)
+            ? currentSong.copyWith(duration: _player.duration)
+            : currentSong;
+        mediaItem.add(songWithDuration);
         break;
 
       case 'toggleQueueLoopMode':

@@ -176,7 +176,7 @@ class SongListTile extends StatelessWidget with RemoveSongFromPlaylistMixin {
                                   )
                                 : const SizedBox.shrink()),
                       Text(
-                        song.extras!['length'] ?? "",
+                        song.extras?['length'] ?? "",
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                     ],

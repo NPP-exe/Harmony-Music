@@ -254,7 +254,13 @@ class PlayerController extends GetxController
     _audioHandler.mediaItem.listen((mediaItem) async {
       final oldState = progressBarStatus.value;
       progressBarStatus.update((val) {
-        val!.total = mediaItem?.duration ?? Duration.zero;
+        if (mediaItem?.duration != null && mediaItem!.duration != Duration.zero) {
+          val!.total = mediaItem.duration!;
+        } else if (oldState.total != Duration.zero) {
+          val!.total = oldState.total;
+        } else {
+          val!.total = mediaItem?.duration ?? Duration.zero;
+        }
         val.current = oldState.current;
         val.buffered = oldState.buffered;
       });
@@ -332,6 +338,8 @@ class PlayerController extends GetxController
   /// loaded at index 0 before playback begins.
   Future<void> pushSongToQueue(MediaItem? mediaItem,
       {String? playlistid, bool radio = false}) async {
+    if (mediaItem == null && playlistid == null) return;
+
     /// update playing from value
     playinfrom.value = PlaylingFrom(
         type: PlaylingFromType.SELECTION,
@@ -340,55 +348,12 @@ class PlayerController extends GetxController
     /// set global radio mode flag
     isRadioModeOn = radio;
 
-    // --- RADIO MODE: fetch queue first, then play ---
-    // Radio requires the full queue to be loaded starting at index 0.
-    if (radio) {
-      try {
-        final content = await _musicServices.getWatchPlaylist(
-            videoId: mediaItem?.id ?? "", radio: true, playlistId: playlistid);
-        radioContinuationParam = content['additionalParamsForNext'];
-        await _audioHandler
-            .updateQueue(List<MediaItem>.from(content['tracks']));
-      } catch (e) {
-        printERROR("pushSongToQueue radio fetch failed: $e");
-      }
-
-      if (isShuffleModeEnabled.isTrue) {
-        await _audioHandler.customAction("shuffleCmd", {"index": 0});
-      }
-
-      // Radio started on the currently-playing song — just update the queue display.
-      if (currentSong.value?.id == mediaItem?.id) {
-        _audioHandler
-            .customAction("upadateMediaItemInAudioService", {"index": 0});
-        // disable queue loop mode when radio is started
-        if (isQueueLoopModeEnabled.isTrue && isShuffleModeEnabled.isFalse) {
-          toggleQueueLoopMode();
-        }
-        return;
-      }
-
-      if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI") {
-        Get.find<HomeScreenController>()
-            .changeDiscoverContent("BOLI", songId: mediaItem!.id);
-      }
-
-      _playerPanelCheck();
-      await _audioHandler
-          .customAction("setSourceNPlay", {'mediaItem': mediaItem});
-
-      if (isQueueLoopModeEnabled.isTrue && isShuffleModeEnabled.isFalse) {
-        toggleQueueLoopMode();
-      }
-      return;
-    }
-
     // --- PLAYLIST MODE (playlistid != null): fetch queue first, play by index ---
     if (playlistid != null) {
       try {
         final content = await _musicServices.getWatchPlaylist(
             videoId: mediaItem?.id ?? "",
-            radio: false,
+            radio: radio,
             playlistId: playlistid);
         radioContinuationParam = content['additionalParamsForNext'];
         await _audioHandler
@@ -404,29 +369,64 @@ class PlayerController extends GetxController
       _playerPanelCheck();
       await _audioHandler.customAction("playByIndex", {"index": 0});
 
-      if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI") {
+      if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI" &&
+          mediaItem != null) {
         Get.find<HomeScreenController>()
-            .changeDiscoverContent("BOLI", songId: mediaItem!.id);
+            .changeDiscoverContent("BOLI", songId: mediaItem.id);
       }
       return;
     }
 
-    // --- REGULAR SONG TAP: start playback immediately, fetch related queue in background ---
-    // Open the player panel and start the song right away so the user sees
-    // instant feedback. The related songs queue is fetched concurrently and
-    // appended after playback starts.
-    if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI") {
+    // --- RADIO MODE ON CURRENTLY PLAYING SONG ---
+    // If radio started on currently playing song, keep playing smoothly!
+    // Simply fetch the radio queue and populate upcoming songs behind it.
+    if (radio && currentSong.value?.id == mediaItem?.id) {
+      try {
+        final content = await _musicServices.getWatchPlaylist(
+            videoId: mediaItem?.id ?? "", radio: true);
+        radioContinuationParam = content['additionalParamsForNext'];
+        final fetchedTracks = List<MediaItem>.from(content['tracks']);
+        final current = currentSong.value!;
+        final newQueue = <MediaItem>[current];
+        for (final track in fetchedTracks) {
+          if (track.id != current.id) {
+            newQueue.add(track);
+          }
+        }
+        await _audioHandler.updateQueue(newQueue);
+        if (isShuffleModeEnabled.isTrue) {
+          await _audioHandler.customAction("shuffleCmd", {"index": 0});
+        }
+      } catch (e) {
+        printERROR("pushSongToQueue radio on current song failed: $e");
+      }
+
+      if (isQueueLoopModeEnabled.isTrue && isShuffleModeEnabled.isFalse) {
+        toggleQueueLoopMode();
+      }
+      return;
+    }
+
+    // --- REGULAR SONG TAP OR RADIO ON NEW SONG ---
+    // Start playback immediately for instant UI feedback
+    if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI" &&
+        mediaItem != null) {
       Get.find<HomeScreenController>()
-          .changeDiscoverContent("BOLI", songId: mediaItem!.id);
+          .changeDiscoverContent("BOLI", songId: mediaItem.id);
     }
 
     _playerPanelCheck();
     await _audioHandler
         .customAction("setSourceNPlay", {'mediaItem': mediaItem});
 
-    // Fetch the related/watch playlist concurrently — do NOT await here so
-    // playback is never blocked. Queue will be updated once fetch completes.
-    _fetchAndUpdateRelatedQueue(mediaItem, radio: false);
+    if (radio &&
+        isQueueLoopModeEnabled.isTrue &&
+        isShuffleModeEnabled.isFalse) {
+      toggleQueueLoopMode();
+    }
+
+    // Fetch related or radio queue concurrently in background
+    _fetchAndUpdateRelatedQueue(mediaItem, radio: radio);
   }
 
   /// Fetches the watch/radio playlist for [mediaItem] and updates the queue.
@@ -440,8 +440,21 @@ class PlayerController extends GetxController
         return;
       }
       radioContinuationParam = content['additionalParamsForNext'];
-      await _audioHandler
-          .updateQueue(List<MediaItem>.from(content['tracks']));
+      final fetchedTracks = List<MediaItem>.from(content['tracks']);
+
+      // Ensure the currently playing song is preserved at index 0
+      final current = currentSong.value ?? mediaItem;
+      final newQueue = <MediaItem>[];
+      if (current != null) {
+        newQueue.add(current);
+      }
+      for (final track in fetchedTracks) {
+        if (track.id != current?.id) {
+          newQueue.add(track);
+        }
+      }
+
+      await _audioHandler.updateQueue(newQueue);
       if (isShuffleModeEnabled.isTrue) {
         await _audioHandler.customAction("shuffleCmd", {"index": 0});
       }

@@ -109,8 +109,10 @@ class Home extends StatelessWidget {
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                        "${playerController.currentQueue.length} ${"songs".tr}"),
+                                    Obx(
+                                      () => Text(
+                                          "${playerController.currentQueue.length} ${"songs".tr}"),
+                                    ),
                                     Text(
                                       "upNext".tr,
                                       style: Theme.of(context)
