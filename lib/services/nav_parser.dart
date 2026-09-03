@@ -818,6 +818,22 @@ dynamic parseSearchResult(Map<String, dynamic> data,
     final runs = (flexItem['text']['runs']);
     final songInfo = parseSongRuns(runs);
     searchResult.addAll(songInfo);
+
+    if (searchResult['album'] == null) {
+      final menuItems = nav(data, menu_items);
+      if (menuItems != null && menuItems is List) {
+        for (var menuItem in menuItems) {
+          final navItem = menuItem['menuNavigationItemRenderer'];
+          if (navItem != null) {
+            final browseId = nav(navItem, navigation_browse_id);
+            if (browseId != null && (browseId.startsWith('MPRE') || browseId.contains('release_detail'))) {
+              searchResult['album'] = {'name': 'Unknown', 'id': browseId};
+              break;
+            }
+          }
+        }
+      }
+    }
   }
 
   if ((['artist', 'album', 'playlist']).contains(resultType)) {

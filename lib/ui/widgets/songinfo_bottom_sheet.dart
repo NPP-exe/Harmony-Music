@@ -245,32 +245,42 @@ class SongInfoBottomSheet extends StatelessWidget {
                     )
                   : const SizedBox.shrink(),
             ),
-            ListTile(
-              leading: const Icon(Icons.open_with),
-              title: Text("openIn".tr),
-              trailing: SizedBox(
-                width: 200,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      splashRadius: 10,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
                       onPressed: () {
                         launchUrl(Uri.parse(
                             "https://youtube.com/watch?v=${song.id}"));
                       },
                       icon: const Icon(Ionicons.logo_youtube),
+                      label: const Text("YouTube"),
                     ),
-                    IconButton(
-                      splashRadius: 10,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
                       onPressed: () {
                         launchUrl(Uri.parse(
                             "https://music.youtube.com/watch?v=${song.id}"));
                       },
                       icon: const Icon(Ionicons.play_circle),
-                    )
-                  ],
-                ),
+                      label: const Text("YT Music"),
+                    ),
+                  ),
+                ],
               ),
             ),
             if (calledFromPlayer)

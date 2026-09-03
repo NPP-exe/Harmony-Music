@@ -319,8 +319,9 @@ class PlayerController extends GetxController
     });
   }
 
-  ///pushSongToPlaylist method clear previous song queue, plays the tapped song and push related
-  ///songs into Queue
+  ///pushSongToQueue method clears previous song queue, plays the tapped song and pushes related
+  ///songs into Queue. The watch playlist is fetched before playback starts to avoid a race
+  ///condition where the queue would be empty when the song begins playing.
   Future<void> pushSongToQueue(MediaItem? mediaItem,
       {String? playlistid, bool radio = false}) async {
     /// update playing from value
@@ -331,43 +332,44 @@ class PlayerController extends GetxController
     /// set global radio mode flag
     isRadioModeOn = radio;
 
-    Future.delayed(
-      Duration.zero,
-      () async {
-        final content = await _musicServices.getWatchPlaylist(
-            videoId: mediaItem?.id ?? "", radio: radio, playlistId: playlistid);
-        radioContinuationParam = content['additionalParamsForNext'];
-        await _audioHandler
-            .updateQueue(List<MediaItem>.from(content['tracks']));
-        if (isShuffleModeEnabled.isTrue) {
-          await _audioHandler.customAction("shuffleCmd", {"index": 0});
-        }
+    // Fetch the watch/radio playlist FIRST so the queue is populated before
+    // playback starts. The old Future.delayed wrapper caused a race where
+    // setSourceNPlay ran before updateQueue completed, leaving the queue empty.
+    final content = await _musicServices.getWatchPlaylist(
+        videoId: mediaItem?.id ?? "", radio: radio, playlistId: playlistid);
+    radioContinuationParam = content['additionalParamsForNext'];
 
-        // added here to broadcast current mediaitem via Audio Service as list is updated
-        // if radio is started on current playing song
-        if (radio && (currentSong.value?.id == mediaItem?.id)) {
-          _audioHandler
-              .customAction("upadateMediaItemInAudioService", {"index": 0});
-        }
-      },
-    ).then((value) async {
-      if (playlistid != null) {
-        _playerPanelCheck();
-        await _audioHandler.customAction("playByIndex", {"index": 0});
-      } else {
-        if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI") {
-          Get.find<HomeScreenController>()
-              .changeDiscoverContent("BOLI", songId: mediaItem!.id);
-        }
+    await _audioHandler.updateQueue(List<MediaItem>.from(content['tracks']));
+
+    if (isShuffleModeEnabled.isTrue) {
+      await _audioHandler.customAction("shuffleCmd", {"index": 0});
+    }
+
+    // Broadcast current mediaItem via AudioService if radio started on
+    // the currently-playing song (queue list was just replaced).
+    if (radio && (currentSong.value?.id == mediaItem?.id)) {
+      _audioHandler
+          .customAction("upadateMediaItemInAudioService", {"index": 0});
+    }
+
+    if (playlistid != null) {
+      _playerPanelCheck();
+      await _audioHandler.customAction("playByIndex", {"index": 0});
+      if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI") {
+        Get.find<HomeScreenController>()
+            .changeDiscoverContent("BOLI", songId: mediaItem!.id);
       }
-    });
-
-    if (playlistid != null ||
-        (radio && (currentSong.value?.id == mediaItem?.id))) {
       return;
     }
 
-    //currentSong.value = mediaItem;
+    // If radio was started on the currently-playing song, no further action.
+    if (radio && (currentSong.value?.id == mediaItem?.id)) return;
+
+    if (Hive.box("AppPrefs").get("discoverContentType") == "BOLI") {
+      Get.find<HomeScreenController>()
+          .changeDiscoverContent("BOLI", songId: mediaItem!.id);
+    }
+
     _playerPanelCheck();
     await _audioHandler
         .customAction("setSourceNPlay", {'mediaItem': mediaItem});
