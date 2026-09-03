@@ -146,15 +146,18 @@ class PlayerController extends GetxController
   void panellistener(double x) {
     if (x >= 0 && x <= 0.2) {
       playerPaneOpacity.value = 1 - (x * 5);
-      isPlayerpanelTopVisible.value = true;
+      if (!isPlayerpanelTopVisible.value) {
+        isPlayerpanelTopVisible.value = true;
+      }
     } else if (x > 0.2) {
-      isPlayerpanelTopVisible.value = false;
+      if (isPlayerpanelTopVisible.value) {
+        isPlayerpanelTopVisible.value = false;
+      }
     }
 
-    if (x > 0.6) {
-      isPanelGTHOpened.value = true;
-    } else {
-      isPanelGTHOpened.value = false;
+    final newPanelGTHState = x > 0.6;
+    if (isPanelGTHOpened.value != newPanelGTHState) {
+      isPanelGTHOpened.value = newPanelGTHState;
     }
   }
 

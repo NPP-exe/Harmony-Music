@@ -245,43 +245,27 @@ class SongInfoBottomSheet extends StatelessWidget {
                     )
                   : const SizedBox.shrink(),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 8.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onPressed: () {
-                        launchUrl(Uri.parse(
-                            "https://youtube.com/watch?v=${song.id}"));
-                      },
-                      icon: const Icon(Ionicons.logo_youtube),
-                      label: const Text("YouTube"),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      onPressed: () {
-                        launchUrl(Uri.parse(
-                            "https://music.youtube.com/watch?v=${song.id}"));
-                      },
-                      icon: const Icon(Ionicons.play_circle),
-                      label: const Text("YT Music"),
-                    ),
-                  ),
-                ],
-              ),
+            ListTile(
+              visualDensity: const VisualDensity(vertical: -1),
+              leading: const Icon(Ionicons.logo_youtube),
+              title: Text("openInYt".tr),
+              onTap: () {
+                launchUrl(
+                  Uri.parse("https://youtube.com/watch?v=${song.id}"),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
+            ),
+            ListTile(
+              visualDensity: const VisualDensity(vertical: -1),
+              leading: const Icon(Ionicons.play_circle),
+              title: Text("openInYtMusic".tr),
+              onTap: () {
+                launchUrl(
+                  Uri.parse("https://music.youtube.com/watch?v=${song.id}"),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
             ),
             if (calledFromPlayer)
               ListTile(

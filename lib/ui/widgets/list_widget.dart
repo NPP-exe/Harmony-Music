@@ -86,8 +86,6 @@ class ListWidget extends StatelessWidget with RemoveSongFromPlaylistMixin {
         bottom: 200,
         top: 0,
       ),
-      addRepaintBoundaries: false,
-      addAutomaticKeepAlives: false,
       controller: sc,
       itemCount: items.length,
       physics: isCompleteList
@@ -117,6 +115,7 @@ class ListWidget extends StatelessWidget with RemoveSongFromPlaylistMixin {
       ),
     );
   }
+
 
   Widget listViewPlaylists(List<dynamic> playlists, {ScrollController? sc}) {
     return Expanded(

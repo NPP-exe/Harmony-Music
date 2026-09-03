@@ -1810,6 +1810,8 @@ Map<String, Map<String, String>> get keys => {
     "goToAlbum": "Go to album",
     "viewArtist": "View Artist",
     "openIn": "Open in",
+    "openInYt": "Open in YouTube",
+    "openInYtMusic": "Open in YouTube Music",
     "shareSong": "Share this song",
     "removeFromPlaylist": "Remove from playlist",
     "removeFromQueue": "Remove from queue",
