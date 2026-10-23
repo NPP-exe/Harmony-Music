@@ -37,6 +37,31 @@ A cross platform app for music streaming made with Flutter(Android, Windows, lin
 
 <a href="https://github.com/NPP-exe/Harmony-Music/releases/latest"><img src ="https://github.com/anandnet/Harmony-Music/blob/main/don_github.png" width = "250"></a> </a> 
 
+# Nix (Linux amd64)
+
+With Nix and flakes enabled, build or run the pinned stable release:
+
+```sh
+nix build
+nix run
+```
+
+The default package follows the stable release recorded in `nix/release.json`.
+Application commits on `main` do not change its source. The `audiotags` native
+library is compiled from Rust source.
+
+For local development:
+
+```sh
+nix develop
+flutter run
+```
+
+Use `nix build .#development` to package the current checkout, or
+`nix flake check` to build both variants and check lockfile consistency.
+See [Nix development and release maintenance](nix/README.md) for dependencies,
+release updates, and NixOS/Home Manager examples.
+
 # Translation
 <a href="https://hosted.weblate.org/engage/harmony-music/">
 <img src="https://hosted.weblate.org/widget/harmony-music/project-translations/multi-auto.svg" alt="Translation status" />

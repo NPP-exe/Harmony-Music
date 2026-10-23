@@ -1,0 +1,17 @@
+{
+  "just_audio_media_kit": {
+    "hash": "sha256-XYrpaBYSLFzCPtvYboYfi4FEHPI8+Ys5Dcdj7itEzNI=",
+    "rev": "6672eb82657d9e671abbf42122031c88aa9e6d80",
+    "url": "https://github.com/anandnet/just_audio_media_kit.git"
+  },
+  "sidebar_with_animation": {
+    "hash": "sha256-Y7dTO4wN7cOmm2mnzQPW/gDYltLr7wMKMXbGtAg8WzY=",
+    "rev": "b53567a42b4ba3793a3cf00d478bdba0ecce33d7",
+    "url": "https://github.com/anandnet/animated_side_bar.git"
+  },
+  "terminate_restart": {
+    "hash": "sha256-NiznKbko9f2yWcI62MA2xc/NQgy/31fYqK0COHR1Wpk=",
+    "rev": "eb505e07e11d0fe1f5c03993e707c6678428c353",
+    "url": "https://github.com/anandnet/terminate_restart.git"
+  }
+}

@@ -1,0 +1,163 @@
+name: Nix maintenance
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - "pubspec.lock"
+      - "pubspec.yaml"
+      - "packages/youtube_explode_dart/pubspec.yaml"
+  schedule:
+    - cron: "23 5 1 * *"
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Update to propose
+        type: choice
+        options: [release, lockfile, nixpkgs]
+        default: release
+        required: true
+      tag:
+        description: Stable release tag (blank uses the latest stable release)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nix-maintenance-${{ github.event_name == 'release' && 'release' || github.event_name == 'push' && 'lockfile' || github.event_name == 'schedule' && 'nixpkgs' || inputs.operation }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name != 'release' ||
+      (!github.event.release.prerelease && !github.event.release.draft)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      operation: ${{ steps.update.outputs.operation }}
+      base: ${{ steps.base.outputs.commit }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Record the source commit
+        id: base
+        run: printf 'commit=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # 31.11.3
+      - name: Prepare the update
+        id: update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_EVENT: ${{ github.event_name }}
+          REQUESTED_OPERATION: ${{ inputs.operation }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          case "$WORKFLOW_EVENT" in
+            release) operation=release ;;
+            push) operation=lockfile ;;
+            schedule) operation=nixpkgs ;;
+            workflow_dispatch) operation="$REQUESTED_OPERATION" ;;
+            *) exit 1 ;;
+          esac
+
+          case "$operation" in
+            release)
+              if [ -n "$RELEASE_TAG" ]; then
+                nix run .#update-release -- "$RELEASE_TAG"
+              else
+                nix run .#update-release
+              fi
+              ;;
+            lockfile)
+              nix run .#resolve-lockfile
+              ;;
+            nixpkgs)
+              nix flake update nixpkgs
+              ;;
+            *) exit 1 ;;
+          esac
+
+          printf 'operation=%s\n' "$operation" >> "$GITHUB_OUTPUT"
+          case "$operation" in
+            release) files=(nix/release.json nix/release/pubspec.lock.json nix/release/git-hashes.json) ;;
+            lockfile) files=(pubspec.lock nix/pubspec.lock.json nix/git-hashes.json) ;;
+            nixpkgs) files=(flake.lock) ;;
+          esac
+          for file in "${files[@]}"; do
+            install -Dm644 "$file" "$RUNNER_TEMP/nix-update/$file"
+          done
+      - name: Upload update data
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nix-update
+          path: ${{ runner.temp }}/nix-update/
+          if-no-files-found: error
+          retention-days: 1
+
+  propose:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Download update data
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nix-update
+          path: ${{ runner.temp }}/nix-update/
+      - name: Validate and apply update data
+        id: update
+        env:
+          UPDATE_OPERATION: ${{ needs.prepare.outputs.operation }}
+          PREPARED_BASE: ${{ needs.prepare.outputs.base }}
+        run: python3 nix/apply-maintenance.py "$RUNNER_TEMP/nix-update" "$UPDATE_OPERATION" "$PREPARED_BASE" >> "$GITHUB_OUTPUT"
+      - name: Propose the update
+        id: pr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ github.token }}
+          base: ${{ github.event.repository.default_branch }}
+          branch: ${{ steps.update.outputs.branch }}
+          delete-branch: true
+          title: ${{ steps.update.outputs.title }}
+          commit-message: ${{ steps.update.outputs.title }}
+          add-paths: |
+            pubspec.lock
+            flake.lock
+            nix/release.json
+            nix/release/pubspec.lock.json
+            nix/release/git-hashes.json
+            nix/pubspec.lock.json
+            nix/git-hashes.json
+          body: |
+            ${{ steps.update.outputs.title }}
+
+            Generated by the Nix maintenance workflow. The diff contains the updated
+            source pins or dependency locks. A separate Nix workflow is dispatched
+            for this branch to build the stable and development packages and check
+            formatting, workflow syntax, and lockfile consistency.
+
+            Review the diff and CI results, then test playback and desktop integration.
+            Flutter migrations and native plugin compatibility may require follow-up changes.
+      - name: Dispatch Nix checks for the proposed commit
+        if: >-
+          steps.pr.outputs.pull-request-operation == 'created' ||
+          steps.pr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          UPDATE_BRANCH: ${{ steps.update.outputs.branch }}
+        run: gh workflow run nix.yml --ref "$UPDATE_BRANCH"
