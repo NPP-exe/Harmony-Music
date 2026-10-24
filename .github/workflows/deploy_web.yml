@@ -1,0 +1,83 @@
+name: Deploy Web
+
+'on':
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Code quality check"]
+    types:
+      - completed
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.29.0'
+
+      - uses: actions/configure-pages@v5
+
+      - name: Set GitHub Pages base path
+        id: pages
+        run: |
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          if [[ "$repository_name" == "${GITHUB_REPOSITORY_OWNER}.github.io" ]]; then
+            echo "base_href=/" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_href=/${repository_name}/" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Build Flutter web app
+        env:
+          BASE_HREF: ${{ steps.pages.outputs.base_href }}
+        run: flutter build web --release --base-href "$BASE_HREF"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      - name: Build downloadable local web bundle
+        run: flutter build web --release --base-href / --output build/web-local
+
+      - name: Package downloadable web bundle
+        run: |
+          cp tools/web-download/README.txt tools/web-download/run-local.sh tools/web-download/run-local.bat build/web-local/
+          cd build/web-local
+          zip -qr ../../harmonymusic-web-local.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmonymusic-web-local
+          path: harmonymusic-web-local.zip
+          if-no-files-found: error
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

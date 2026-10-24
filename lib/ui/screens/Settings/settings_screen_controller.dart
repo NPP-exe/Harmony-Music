@@ -19,6 +19,7 @@ import '/services/music_service.dart';
 import '/ui/player/player_controller.dart';
 import '../Home/home_screen_controller.dart';
 import '/ui/utils/theme_controller.dart';
+
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 class SettingsScreenController extends GetxController {
@@ -100,6 +101,10 @@ class SettingsScreenController extends GetxController {
   Future<VersionUpdateInfo> manualCheckNewVersion() => _checkNewVersion();
 
   Future<String> _createInAppSongDownDir() async {
+    if (GetPlatform.isWeb) {
+      _supportDir = '';
+      return '';
+    }
     _supportDir = (await getApplicationSupportDirectory()).path;
     final directory = Directory("$_supportDir/Music/");
     if (!await directory.exists()) {
@@ -114,17 +119,20 @@ class SettingsScreenController extends GetxController {
     currentAppLanguageCode.value = appLang == "zh_Hant"
         ? "zh-TW"
         : appLang == "zh_Hans"
-            ? "zh-CN"
-            : appLang;
-    isBottomNavBarEnabled.value =
-        isDesktop ? false : (setBox.get("isBottomNavBarEnabled") ?? false);
+        ? "zh-CN"
+        : appLang;
+    isBottomNavBarEnabled.value = isDesktop
+        ? false
+        : (setBox.get("isBottomNavBarEnabled") ?? false);
     noOfHomeScreenContent.value = setBox.get("noOfHomeScreenContent") ?? 3;
     isTransitionAnimationDisabled.value =
         setBox.get("isTransitionAnimationDisabled") ?? false;
     cacheSongs.value = setBox.get('cacheSongs') ?? false;
-    themeModetype.value = ThemeType.values[setBox.get('themeModeType') ?? ThemeType.dark.index];
-    skipSilenceEnabled.value =
-        isDesktop ? false : setBox.get("skipSilenceEnabled");
+    themeModetype.value =
+        ThemeType.values[setBox.get('themeModeType') ?? ThemeType.dark.index];
+    skipSilenceEnabled.value = isDesktop
+        ? false
+        : (setBox.get("skipSilenceEnabled") ?? false);
     loudnessNormalizationEnabled.value = isDesktop
         ? false
         : (setBox.get("loudnessNormalizationEnabled") ?? false);
@@ -132,8 +140,14 @@ class SettingsScreenController extends GetxController {
     restorePlaybackSession.value =
         setBox.get("restrorePlaybackSession") ?? false;
     cacheHomeScreenData.value = setBox.get("cacheHomeScreenData") ?? true;
-    streamingQuality.value =
-        AudioQuality.values[setBox.get('streamingQuality')];
+    final savedQuality = setBox.get('streamingQuality');
+    final qualityIndex =
+        savedQuality is int &&
+            savedQuality >= 0 &&
+            savedQuality < AudioQuality.values.length
+        ? savedQuality
+        : AudioQuality.High.index;
+    streamingQuality.value = AudioQuality.values[qualityIndex];
     playerUi.value = isDesktop ? 0 : (setBox.get('playerUi') ?? 0);
     backgroundPlayEnabled.value = setBox.get("backgroundPlayEnabled") ?? true;
     keepScreenAwake.value =
@@ -142,17 +156,17 @@ class SettingsScreenController extends GetxController {
         setBox.get('downloadLocationPath') ?? await _createInAppSongDownDir();
     downloadLocationPath.value =
         (isDesktop && downloadPath.contains("emulated"))
-            ? await _createInAppSongDownDir()
-            : downloadPath;
+        ? await _createInAppSongDownDir()
+        : downloadPath;
 
     exportLocationPath.value =
         setBox.get("exportLocationPath") ?? "/storage/emulated/0/Music";
     downloadingFormat.value = setBox.get('downloadingFormat') ?? "m4a";
     discoverContentType.value = setBox.get('discoverContentType') ?? "QP";
     slidableActionEnabled.value = setBox.get('slidableActionEnabled') ?? true;
-    if (setBox.containsKey("piped")) {
-      isLinkedWithPiped.value = setBox.get("piped")['isLoggedIn'];
-    }
+    final pipedSettings = setBox.get("piped");
+    isLinkedWithPiped.value =
+        pipedSettings is Map && pipedSettings['isLoggedIn'] == true;
     stopPlyabackOnSwipeAway.value =
         setBox.get('stopPlyabackOnSwipeAway') ?? false;
     if (GetPlatform.isAndroid) {
@@ -202,8 +216,9 @@ class SettingsScreenController extends GetxController {
       homeScrCon.onSideBarTabSelected(5);
     }
     if (!Get.find<PlayerController>().initFlagForPlayer) {
-      playerCon.playerPanelMinHeight.value =
-          val ? 75.0 : 75.0 + Get.mediaQuery.viewPadding.bottom;
+      playerCon.playerPanelMinHeight.value = val
+          ? 75.0
+          : 75.0 + Get.mediaQuery.viewPadding.bottom;
     }
     setBox.put("isBottomNavBarEnabled", val);
   }
@@ -223,8 +238,9 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await FilePicker.platform
-        .getDirectoryPath(dialogTitle: "Select export file folder");
+    final String? pickedFolderPath = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: "Select export file folder",
+    );
     if (pickedFolderPath == '/' || pickedFolderPath == null) {
       return;
     }
@@ -238,8 +254,9 @@ class SettingsScreenController extends GetxController {
       return;
     }
 
-    final String? pickedFolderPath = await FilePicker.platform
-        .getDirectoryPath(dialogTitle: "Select downloads folder");
+    final String? pickedFolderPath = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: "Select downloads folder",
+    );
     if (pickedFolderPath == '/' || pickedFolderPath == null) {
       return;
     }
@@ -335,16 +352,15 @@ class SettingsScreenController extends GetxController {
     setBox.put('keepScreenAwake', val);
     keepScreenAwake.value = val;
     try {
-        if (val) {
-          // enable wakelock immediately if music is playing
-          if (Get.find<PlayerController>().buttonState.value ==
-              PlayButtonState.playing) {
-            WakelockPlus.enable();
-          }
-        } else {
-          WakelockPlus.disable();
+      if (val) {
+        // enable wakelock immediately if music is playing
+        if (Get.find<PlayerController>().buttonState.value ==
+            PlayButtonState.playing) {
+          WakelockPlus.enable();
         }
-     
+      } else {
+        WakelockPlus.disable();
+      }
     } catch (e) {
       // ignore if player/controller not available
     }
@@ -368,7 +384,8 @@ class SettingsScreenController extends GetxController {
     final box = await Hive.openBox('blacklistedPlaylist');
     box.clear();
     ScaffoldMessenger.of(Get.context!).showSnackBar(
-        snackbar(Get.context!, "unlinkAlert".tr, size: SanckBarSize.MEDIUM));
+      snackbar(Get.context!, "unlinkAlert".tr, size: SanckBarSize.MEDIUM),
+    );
     box.close();
   }
 
@@ -386,6 +403,7 @@ class SettingsScreenController extends GetxController {
   }
 
   Future<String> get dbDir async {
+    if (GetPlatform.isWeb) return '';
     if (GetPlatform.isDesktop) {
       return "$supportDirPath/db";
     } else {

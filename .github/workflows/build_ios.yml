@@ -1,0 +1,164 @@
+name: Build the iOS IPA
+
+'on':
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Code quality check"]
+    types:
+      - completed
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-ios:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    name: Build unsigned iOS IPA
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.29.0'
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Install audiotags iOS XCFramework
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          import plistlib
+          import subprocess
+          import tempfile
+          import zipfile
+
+          podspecs = list(Path.home().glob(
+            ".pub-cache/hosted/pub.dev/audiotags-*/ios/audiotags.podspec"
+          ))
+          if len(podspecs) != 1:
+            raise SystemExit(f"Expected one audiotags iOS Podspec, found {len(podspecs)}")
+
+          podspec = podspecs[0]
+          source = podspec.read_text()
+          version = re.search(r'^version = "([^"]+)"', source, re.MULTILINE)
+          if version is None:
+            raise SystemExit("Could not determine audiotags version from Podspec")
+
+          framework_dir = podspec.parent / "Frameworks" / "audiotags.xcframework"
+          framework_dir.mkdir(parents=True, exist_ok=True)
+          archive = Path(tempfile.gettempdir()) / f"audiotags-ios-{version.group(1)}.zip"
+          subprocess.run([
+            "curl", "--fail", "--location", "--silent", "--show-error",
+            f"https://github.com/erikas-taroza/audiotags/releases/download/v{version.group(1)}/ios.zip",
+            "--output", str(archive),
+          ], check=True)
+          with zipfile.ZipFile(archive) as bundle:
+            bundle.extractall(framework_dir)
+          archive.unlink()
+
+          info_plist = framework_dir / "Info.plist"
+          if not info_plist.is_file():
+            raise SystemExit(f"Invalid XCFramework: missing {info_plist}")
+          manifest = plistlib.loads(info_plist.read_bytes())
+          libraries = manifest.get("AvailableLibraries", [])
+          expected_slices = {
+              ("ios-arm64", "arm64", None),
+              ("ios-arm64_x86_64-simulator", "arm64", "simulator"),
+              ("ios-arm64_x86_64-simulator", "x86_64", "simulator"),
+          }
+          found_slices = set()
+          for entry in libraries:
+            if entry.get("SupportedPlatform") != "ios":
+              continue
+            identifier = entry["LibraryIdentifier"]
+            library = framework_dir / identifier / entry["LibraryPath"]
+            if not library.is_file() or library.stat().st_size == 0:
+              raise SystemExit(f"Missing audiotags library: {library}")
+            variant = entry.get("SupportedPlatformVariant")
+            for architecture in entry.get("SupportedArchitectures", []):
+              found_slices.add((identifier, architecture, variant))
+          if not expected_slices.issubset(found_slices):
+            raise SystemExit(f"Incomplete audiotags iOS slices: {found_slices}")
+
+          downloader = re.compile(r"(?ms)^`\nmkdir Frameworks\n.*?^`\n")
+          if len(downloader.findall(source)) != 1:
+            raise SystemExit("Unexpected audiotags Podspec downloader; refusing to patch")
+          if "s.vendored_frameworks = 'Frameworks/**/*.xcframework'" not in source:
+            raise SystemExit("audiotags Podspec does not link the installed XCFramework")
+          source = downloader.sub("# XCFramework is provisioned by CI.\n", source, count=1)
+          podspec.write_text(source)
+          print(f"Installed audiotags {version.group(1)} iOS XCFramework at {framework_dir}")
+          PY
+
+      - name: Verify audiotags iOS bridge symbols
+        shell: bash
+        run: |
+          set -euo pipefail
+          library=$(find "$HOME/.pub-cache/hosted/pub.dev" -path '*/audiotags-*/ios/Frameworks/audiotags.xcframework/ios-arm64/libaudiotags.a' -print -quit)
+          test -n "$library"
+          symbols=$(nm -gU "$library")
+          for symbol in _drop_dart_object _free_WireSyncReturn _get_dart_object _new_box_autoadd_tag_0 _wire_read _wire_write; do
+            grep -q "$symbol" <<< "$symbols" || {
+              echo "Missing audiotags iOS symbol: $symbol"
+              exit 1
+            }
+          done
+
+      - name: Patch terminate_restart for Flutter 3.29
+        shell: bash
+        run: |
+          set -euo pipefail
+          plugin_file="$(find "$HOME/.pub-cache/git" -path '*/terminate_restart-*/ios/Classes/TerminateRestartPlugin.swift' -print -quit)"
+          if [[ -z "$plugin_file" ]]; then
+            echo "terminate_restart iOS source was not found in the Pub cache."
+            exit 1
+          fi
+
+          python3 - "$plugin_file" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          plugin_file = Path(sys.argv[1])
+          source = plugin_file.read_text()
+          pattern = re.compile(
+              r'(?m)^([ \t]*)guard let flutterEngine = flutterViewController\.engine else \{\n'
+              r'\s*print\(" \[TerminateRestart\] Error: No Flutter engine found"\)\n'
+              r'\s*return\n\s*\}'
+          )
+          matches = list(pattern.finditer(source))
+          if len(matches) != 1:
+              raise SystemExit("Unexpected terminate_restart source; refusing to patch")
+          source = pattern.sub(
+              r'\1let flutterEngine = flutterViewController.engine', source, count=1
+          )
+          plugin_file.write_text(source)
+          PY
+
+      - name: Build iOS archive
+        run: flutter build ipa --release --no-codesign
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          ditto build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app \
+            build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          zip -qry harmonymusic-ios-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmonymusic-ios-unsigned-ipa
+          path: build/ios/ipa/harmonymusic-ios-unsigned.ipa
+          if-no-files-found: error
