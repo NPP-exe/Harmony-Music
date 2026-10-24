@@ -1,0 +1,135 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Code quality check"]
+    types:
+      - completed
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-apk:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.29.0'
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install NDK 26.3.11579264
+        run: |
+          echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;26.3.11579264"
+
+      - name: Update lang data
+        run: dart localization/generator.dart
+
+      - name: Set update check flag to true
+        working-directory: lib/utils
+        run: echo "const updateCheckFlag = true;" > update_check_flag_file.dart
+
+      - name: Configure Keystore for Release Signing
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$IS_FORK_PR" != "true" &&
+                "$GITHUB_REPOSITORY" == "NPP-exe/Harmony-Music" &&
+                -n "$KEYSTORE_BASE64" &&
+                -n "$KEY_STORE_PASSWORD" &&
+                -n "$KEY_PASSWORD" ]]; then
+            echo "Using release keystore from repository secrets."
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+            STORE_PASSWORD="$KEY_STORE_PASSWORD"
+            KEY_PASS="$KEY_PASSWORD"
+            KEY_ALIAS_VALUE="${KEY_ALIAS:-harmonymusic}"
+            SIGNING_MODE="release"
+          else
+            echo "Generating a temporary keystore for this non-release build."
+            rm -f android/app/upload-keystore.jks
+            STORE_PASSWORD="$(openssl rand -hex 24)"
+            KEY_PASS="$STORE_PASSWORD"
+            KEY_ALIAS_VALUE="temporary"
+            SIGNING_MODE="temporary"
+            keytool -genkeypair \
+              -alias "$KEY_ALIAS_VALUE" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -keystore android/app/upload-keystore.jks \
+              -storepass "$STORE_PASSWORD" \
+              -keypass "$KEY_PASS" \
+              -dname "CN=Temporary Harmony Music Build,O=HarmonyMusic,C=US"
+          fi
+
+          cp android/app/upload-keystore.jks android/upload-keystore.jks
+          cat <<EOF > android/key.properties
+          storePassword=${STORE_PASSWORD}
+          keyPassword=${KEY_PASS}
+          keyAlias=${KEY_ALIAS_VALUE}
+          storeFile=upload-keystore.jks
+          EOF
+          cp android/key.properties android/app/key.properties
+          echo "signing_mode=$SIGNING_MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Flutter clean
+        run: flutter clean
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Build Universal APK
+        run: flutter build apk --release
+
+      - name: Build Split per ABI APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Verify APK Signature
+        run: |
+          echo "Verifying APK signing status..."
+          APKSIGNER=$(find $ANDROID_SDK_ROOT/build-tools -name apksigner | sort -V | tail -n 1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
+          else
+            echo "apksigner tool not found in SDK build-tools."
+          fi
+          echo "Verifying APK version codes..."
+          APKANALYZER=$(find $ANDROID_SDK_ROOT/cmdline-tools -name apkanalyzer | sort -V | tail -n 1)
+          if [ -n "$APKANALYZER" ]; then
+            for apk in build/app/outputs/flutter-apk/*.apk; do
+              echo "  $apk => version-code: $($APKANALYZER manifest version-code $apk)"
+            done
+          fi
+
+      - name: Upload Universal APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: harmonymusic-universal-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload All Release APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: harmonymusic-all-apks-${{ steps.keystore.outputs.signing_mode }}
+          path: build/app/outputs/flutter-apk/*.apk

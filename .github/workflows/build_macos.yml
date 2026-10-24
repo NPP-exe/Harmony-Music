@@ -1,0 +1,78 @@
+name: Build macOS
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Code quality check"]
+    types:
+      - completed
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    name: Build macOS (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            name: ARM64
+            arch: arm64
+            archs: arm64
+            only_active_arch: 'YES'
+          - runner: macos-15-intel
+            name: Intel
+            arch: x86_64
+            archs: x86_64
+            only_active_arch: 'YES'
+          - runner: macos-15
+            name: Universal
+            arch: universal
+            archs: 'arm64 x86_64'
+            only_active_arch: 'NO'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.29.0'
+
+      - name: Install packages
+        run: flutter pub get
+
+      - name: Configure macOS build
+        run: flutter build macos --release --config-only
+
+      - name: Install CocoaPods dependencies
+        run: pod install --project-directory=macos
+
+      - name: Build macOS app
+        env:
+          ARCHS: ${{ matrix.archs }}
+          ONLY_ACTIVE_ARCH: ${{ matrix.only_active_arch }}
+        run: xcodebuild -workspace macos/Runner.xcworkspace -scheme Runner -configuration Release -derivedDataPath build/macos -sdk macosx CODE_SIGNING_ALLOWED=NO ARCHS="$ARCHS" ONLY_ACTIVE_ARCH="$ONLY_ACTIVE_ARCH"
+
+      - name: Verify universal binary
+        if: matrix.arch == 'universal'
+        run: |
+          architectures=$(xcrun lipo -archs build/macos/Build/Products/Release/harmonymusic.app/Contents/MacOS/harmonymusic)
+          [[ "$architectures" == *arm64* && "$architectures" == *x86_64* ]]
+
+      - name: Package app
+        run: ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/harmonymusic.app harmonymusic-macos-${{ matrix.arch }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmonymusic-macos-${{ matrix.arch }}
+          path: harmonymusic-macos-${{ matrix.arch }}.zip
+          if-no-files-found: error

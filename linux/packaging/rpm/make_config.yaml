@@ -1,0 +1,29 @@
+display_name: Harmony Music
+package_name: harmonymusic
+icon: assets/icons/icon.png
+summary: An application to stream Music
+group: Application/Multimedia
+vendor: NPP-exe
+packager: NPP-exe
+license: GPLv3
+url: https://github.com/NPP-exe/Harmony-Music
+
+spec_macros:
+  - "%define _build_id_links none"
+
+requires:
+  - mpv-libs
+  - libappindicator
+
+keywords:
+  - Opensource
+  - Music
+  - Streaming
+  - Flutter
+
+generic_name: Music Application
+
+categories:
+  - Music
+
+startup_notify: true

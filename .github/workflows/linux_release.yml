@@ -1,0 +1,178 @@
+name: Linux Release Build
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Code quality check"]
+    types:
+      - completed
+  push:
+    tags:
+      - 'v*'
+      
+jobs:
+  build-linux-release:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    name: Build Linux deb, rpm and optional AppImage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.29.0
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Enable Linux desktop support
+        run: flutter config --enable-linux-desktop
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bash \
+            dash \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libfuse2 \
+            patchelf \
+            pkg-config \
+            python3 \
+            rpm \
+            wget
+          sudo ln -sf /bin/dash /usr/bin/sh
+
+      - name: Configure rpmbuild wrapper for RPM 6 compatibility
+        run: |
+          sudo tee /usr/local/bin/patch_spec.py > /dev/null << 'EOF'
+          import sys, re
+
+          spec_path = sys.argv[1]
+          with open(spec_path, 'r', encoding='utf-8') as f:
+              content = f.read()
+
+          content = re.sub(
+              r'cp -r [^/\n\r]+/\*.*',
+              r'if [ -d "%{_topdir}/BUILD/%{name}" ]; then cp -r "%{_topdir}/BUILD/%{name}"/* %{buildroot}%{_datadir}/%{name}/; elif [ -d "%{_builddir}/%{name}" ]; then cp -r "%{_builddir}/%{name}"/* %{buildroot}%{_datadir}/%{name}/; else cp -r ../%{name}/* %{buildroot}%{_datadir}/%{name}/; fi',
+              content
+          )
+          content = re.sub(
+              r'cp -r [^\n\r]*\.desktop.*',
+              r'find %{_topdir}/BUILD -name "*.desktop" -exec cp {} %{buildroot}%{_datadir}/applications/%{name}.desktop \; -quit',
+              content
+          )
+          content = re.sub(
+              r'cp -r [^\n\r]*\.png.*',
+              r'find %{_topdir}/BUILD -name "*.png" -exec cp {} %{buildroot}%{_datadir}/pixmaps/%{name}.png \; -quit',
+              content
+          )
+          content = re.sub(
+              r'cp -r [^\n\r]*\.xml.*',
+              r'find %{_topdir}/BUILD -name "*.xml" -exec cp {} %{buildroot}%{_datadir}/metainfo/%{name}.appdata.xml \; -quit || :',
+              content
+          )
+
+          with open(spec_path, 'w', encoding='utf-8') as f:
+              f.write(content)
+          EOF
+
+          sudo tee /usr/local/bin/rpmbuild > /dev/null << 'EOF'
+          #!/usr/bin/env bash
+          set -e
+          for arg in "$@"; do
+            if [[ "$arg" == *.spec && -f "$arg" ]]; then
+              echo "==> Original $arg:"
+              cat "$arg"
+              python3 /usr/local/bin/patch_spec.py "$arg"
+              echo "==> Patched $arg:"
+              cat "$arg"
+            fi
+          done
+          exec /usr/bin/rpmbuild "$@"
+          EOF
+
+          sudo chmod +x /usr/local/bin/patch_spec.py
+          sudo chmod +x /usr/local/bin/rpmbuild
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Build Linux release bundle
+        run: flutter build linux --release
+
+      - name: Install flutter_distributor
+        run: |
+          dart pub global activate flutter_distributor
+          echo "$HOME/.pub-cache/bin" >> "$GITHUB_PATH"
+
+      - name: Install AppImage tool
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/13/obsolete-appimagetool-x86_64.AppImage -O /tmp/appimagetool.AppImage
+          chmod +x /tmp/appimagetool.AppImage
+          cd /tmp
+          ./appimagetool.AppImage --appimage-extract
+          sudo mv squashfs-root /opt/appimagetool
+          sudo ln -sf /opt/appimagetool/AppRun /usr/local/bin/appimagetool
+
+      - name: Prepare packaging staging links
+        run: |
+          ln -sf build/linux/x64/release/bundle harmonymusic
+          ln -sf assets/icons/icon.png harmonymusic.png
+
+      - name: Package Debian build
+        run: flutter_distributor package --platform linux --targets deb --skip-clean
+
+      - name: Package RPM build
+        run: flutter_distributor package --platform linux --targets rpm --skip-clean
+
+      - name: Package AppImage build
+        env:
+          ARCH: x86_64
+        continue-on-error: true
+        run: flutter_distributor package --platform linux --targets appimage --skip-clean
+
+      - name: Upload release artifacts (All)
+        uses: actions/upload-artifact@v7
+        with:
+          name: harmony-music-all-linux-artifacts
+          path: |
+            dist/**/*.deb
+            dist/**/*.rpm
+            dist/**/*.AppImage
+          if-no-files-found: ignore
+
+      - name: Upload release artifact (Debian-based systems)
+        uses: actions/upload-artifact@v7
+        with:
+          name: harmony-music-deb-artifact
+          path: |
+            dist/**/*.deb
+          if-no-files-found: ignore
+
+      - name: Upload release artifact (Fedora-based systems)
+        uses: actions/upload-artifact@v7
+        with:
+          name: harmony-music-rpm-artifact
+          path: |
+            dist/**/*.rpm
+          if-no-files-found: ignore
+
+      - name: Upload release artifact (AppImage)
+        uses: actions/upload-artifact@v7
+        with:
+          name: harmony-music-appimage-artifact
+          path: |
+            dist/**/*.AppImage
+          if-no-files-found: ignore
