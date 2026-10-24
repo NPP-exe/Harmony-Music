@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:path_provider/path_provider.dart';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
-import 'package:audiotags/audiotags.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -15,11 +15,13 @@ import '../ui/screens/Playlist/playlist_screen_controller.dart';
 import '/services/stream_service.dart';
 import '../ui/widgets/snackbar.dart';
 import '/services/permission_service.dart';
+import '/utils/audio_tags.dart';
 import '../ui/screens/Settings/settings_screen_controller.dart';
 import '/utils/helper.dart';
 import '/models/media_Item_builder.dart';
 import '../ui/screens/Library/library_controller.dart';
 import 'music_service.dart';
+
 //import '../models/thumbnail.dart' as th;
 
 class Downloader extends GetxService {
@@ -35,6 +37,7 @@ class Downloader extends GetxService {
   RxList<MediaItem> songQueue = <MediaItem>[].obs;
 
   Future<bool> checkPermissionNDir() async {
+    if (GetPlatform.isWeb) return false;
     final settingsScreenController = Get.find<SettingsScreenController>();
 
     if (!settingsScreenController.isCurrentPathsupportDownDir &&
@@ -52,7 +55,9 @@ class Downloader extends GetxService {
   }
 
   Future<void> downloadPlaylist(
-      String playlistId, List<MediaItem> songList) async {
+    String playlistId,
+    List<MediaItem> songList,
+  ) async {
     if (!(await checkPermissionNDir())) return;
 
     // for toggle between downloading request & cancelling
@@ -90,24 +95,26 @@ class Downloader extends GetxService {
         //checked in case download cancel request
         if (playlistQueue.containsKey(playlistId)) {
           currentPlaylistId.value = playlistId;
-          await downloadSongList((playlistQueue[playlistId]!).toList(),
-              isPlaylist: true);
+          await downloadSongList(
+            (playlistQueue[playlistId]!).toList(),
+            isPlaylist: true,
+          );
           if (Get.isRegistered<PlaylistScreenController>(
-                  tag: Key(playlistId).hashCode.toString()) &&
+                tag: Key(playlistId).hashCode.toString(),
+              ) &&
               playlistQueue.containsKey(playlistId)) {
             Get.find<PlaylistScreenController>(
-                    tag: Key(playlistId).hashCode.toString())
-                .isDownloaded
-                .value = true;
-          } 
+              tag: Key(playlistId).hashCode.toString(),
+            ).isDownloaded.value = true;
+          }
           // in case of album
           else if (Get.isRegistered<AlbumScreenController>(
-                  tag: Key(playlistId).hashCode.toString()) &&
+                tag: Key(playlistId).hashCode.toString(),
+              ) &&
               playlistQueue.containsKey(playlistId)) {
             Get.find<AlbumScreenController>(
-                    tag: Key(playlistId).hashCode.toString())
-                .isDownloaded
-                .value = true;
+              tag: Key(playlistId).hashCode.toString(),
+            ).isDownloaded.value = true;
           }
           playlistQueue.remove(playlistId);
         }
@@ -127,8 +134,10 @@ class Downloader extends GetxService {
     }
   }
 
-  Future<void> downloadSongList(List<MediaItem> jobSongList,
-      {bool isPlaylist = false}) async {
+  Future<void> downloadSongList(
+    List<MediaItem> jobSongList, {
+    bool isPlaylist = false,
+  }) async {
     for (MediaItem song in jobSongList) {
       // intrrupt downloading task in case of playlist download cancel request
       if (isPlaylist && !playlistQueue.containsKey(currentPlaylistId.value)) {
@@ -156,8 +165,9 @@ class Downloader extends GetxService {
     final settingsScreenController = Get.find<SettingsScreenController>();
     final downloadingFormat = settingsScreenController.downloadingFormat.string;
     final dirPath = settingsScreenController.downloadLocationPath.string;
-    final RegExp invalidChar =
-        RegExp(r'Container.|\/|\\|\"|\<|\>|\*|\?|\:|\!|\[|\]|\¡|\||\%');
+    final RegExp invalidChar = RegExp(
+      r'Container.|\/|\\|\"|\<|\>|\*|\?|\:|\!|\[|\]|\¡|\||\%',
+    );
     final songTitle = "${song.title.trim()} (${song.artist?.trim()})"
         .replaceAll(invalidChar, "");
 
@@ -178,14 +188,18 @@ class Downloader extends GetxService {
         try {
           final musicSvc = Get.find<MusicServices>();
           final lrclibResult = await musicSvc.getLyricsFromLrcLib(
-              song.title,
-              song.artist ?? '',
-              song.duration?.inSeconds ?? 0);
+            song.title,
+            song.artist ?? '',
+            song.duration?.inSeconds ?? 0,
+          );
           if (lrclibResult != null) {
             lyricsText = lrclibResult['plain'] ?? lrclibResult['synced'] ?? '';
           }
           if (lyricsText.isEmpty) {
-            final ovh = await musicSvc.getLyricsFromLyricsOvh(song.title, song.artist ?? '');
+            final ovh = await musicSvc.getLyricsFromLyricsOvh(
+              song.title,
+              song.artist ?? '',
+            );
             if (ovh != null) lyricsText = ovh;
           }
           if (lyricsText.isNotEmpty) {
@@ -203,25 +217,20 @@ class Downloader extends GetxService {
             year = song.extras?['year'];
           }
           final imageUrl = song.artUri?.toString();
-          Tag tag = Tag(
-              title: song.title,
-              trackArtist: song.artist,
-              album: song.album,
-              year: int.tryParse(year ?? ''),
-              albumArtist: song.artist,
-              genre: song.genre,
-              pictures: imageUrl != null
-                  ? [
-                      Picture(
-                          bytes: (await NetworkAssetBundle(Uri.parse(imageUrl))
-                                  .load(imageUrl))
-                              .buffer
-                              .asUint8List(),
-                          mimeType: MimeType.png,
-                          pictureType: PictureType.coverFront)
-                    ]
-                  : []);
-          await AudioTags.write(destPath, tag);
+          final coverBytes = imageUrl == null
+              ? null
+              : (await NetworkAssetBundle(Uri.parse(imageUrl)).load(imageUrl))
+                    .buffer
+                    .asUint8List();
+          await writeAudioTags(
+            destPath,
+            title: song.title,
+            artist: song.artist,
+            album: song.album,
+            year: int.tryParse(year ?? ''),
+            genre: song.genre,
+            coverBytes: coverBytes,
+          );
         } catch (e) {
           printERROR('Tag write error (cache copy): $e');
         }
@@ -244,7 +253,7 @@ class Downloader extends GetxService {
             'url': destPath,
             'approxDurationMs': song.duration?.inSeconds ?? 0,
             'size': await cachedFile.length(),
-          }
+          },
         ];
         Hive.box('SongDownloads').put(song.id, songJson);
         Get.find<LibrarySongsController>().librarySongsList.add(song);
@@ -260,14 +269,17 @@ class Downloader extends GetxService {
 
     final playerResponse = await StreamProvider.fetch(song.id);
     if (!playerResponse.playable) {
-      ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
+      ScaffoldMessenger.of(Get.context!).showSnackBar(
+        snackbar(
           Get.context!,
           playerResponse.statusMSG == "networkError"
               ? playerResponse.statusMSG.tr
               : playerResponse.statusMSG,
           size: SanckBarSize.BIG,
           duration: const Duration(seconds: 2),
-          top: !GetPlatform.isDesktop));
+          top: !GetPlatform.isDesktop,
+        ),
+      );
       printINFO("Requested song is not downloadable. You may try again");
       complete.complete();
       return complete.future;
@@ -277,142 +289,149 @@ class Downloader extends GetxService {
         ? playerResponse.highestBitrateOpusAudio!
         : playerResponse.highestBitrateMp4aAudio!;
 
-    final actualDownformat =
-        requiredAudioStream.audioCodec.name.contains("mp") ? "m4a" : "opus";
+    final actualDownformat = requiredAudioStream.audioCodec.name.contains("mp")
+        ? "m4a"
+        : "opus";
     String filePath = "$dirPath/$songTitle.$actualDownformat";
     printINFO("Downloading filePath: $filePath");
     final totalBytes = requiredAudioStream.size;
 
-    _dio.download(
-        requiredAudioStream.url,
-        options: Options(headers: {"Range": 'bytes=0-$totalBytes'}),
-        filePath, onReceiveProgress: (count, total) {
-      if (total <= 0) return;
-      songDownloadingProgress.value = ((count / total) * 100).toInt();
-    }).then(
-      (value) async {
-        printINFO(value.data);
+    _dio
+        .download(
+          requiredAudioStream.url,
+          options: Options(headers: {"Range": 'bytes=0-$totalBytes'}),
+          filePath,
+          onReceiveProgress: (count, total) {
+            if (total <= 0) return;
+            songDownloadingProgress.value = ((count / total) * 100).toInt();
+          },
+        )
+        .then((value) async {
+          printINFO(value.data);
 
-        String? year;
-        try {
-          if (song.extras?['year'] != null) {
-            year = song.extras?['year'];
-          } else {
-            if (song.album != null) {
-              final musicServ = Get.find<MusicServices>();
-              year = await musicServ.getSongYear(song.id);
+          String? year;
+          try {
+            if (song.extras?['year'] != null) {
+              year = song.extras?['year'];
+            } else {
+              if (song.album != null) {
+                final musicServ = Get.find<MusicServices>();
+                year = await musicServ.getSongYear(song.id);
+              }
             }
+          } catch (e) {
+            printERROR("Could not fetch song year: $e");
           }
-        } catch (e) {
-          printERROR("Could not fetch song year: $e");
-        }
 
-        // Save Thumbnail
-        try {
-          final thumbnailPath =
-              "${settingsScreenController.supportDirPath}/thumbnails/${song.id}.png";
-          await _dio.downloadUri(song.artUri!, thumbnailPath);
-        } catch (e) {
-          printERROR("Could not save thumbnail: $e");
-        }
+          // Save Thumbnail
+          try {
+            final thumbnailPath =
+                "${settingsScreenController.supportDirPath}/thumbnails/${song.id}.png";
+            await _dio.downloadUri(song.artUri!, thumbnailPath);
+          } catch (e) {
+            printERROR("Could not save thumbnail: $e");
+          }
 
-        // Fetch & embed lyrics into .lrc file and songJson
-        String lyricsText = '';
-        try {
-          final musicSvc = Get.find<MusicServices>();
-          final lrclibResult = await musicSvc.getLyricsFromLrcLib(
+          // Fetch & embed lyrics into .lrc file and songJson
+          String lyricsText = '';
+          try {
+            final musicSvc = Get.find<MusicServices>();
+            final lrclibResult = await musicSvc.getLyricsFromLrcLib(
               song.title,
               song.artist ?? '',
-              song.duration?.inSeconds ?? 0);
-          if (lrclibResult != null) {
-            lyricsText = lrclibResult['plain'] ?? lrclibResult['synced'] ?? '';
-          }
-          if (lyricsText.isEmpty) {
-            try {
-              final related = await musicSvc.getWatchPlaylist(
-                  videoId: song.id, onlyRelated: true);
-              final browseId = related['lyrics'];
-              if (browseId != null) {
-                final ytmLyrics = await musicSvc.getLyrics(browseId);
-                if (ytmLyrics != null) lyricsText = ytmLyrics.toString();
-              }
-            } catch (e) {
-              printERROR("Could not fetch YTM lyrics: $e");
+              song.duration?.inSeconds ?? 0,
+            );
+            if (lrclibResult != null) {
+              lyricsText =
+                  lrclibResult['plain'] ?? lrclibResult['synced'] ?? '';
             }
+            if (lyricsText.isEmpty) {
+              try {
+                final related = await musicSvc.getWatchPlaylist(
+                  videoId: song.id,
+                  onlyRelated: true,
+                );
+                final browseId = related['lyrics'];
+                if (browseId != null) {
+                  final ytmLyrics = await musicSvc.getLyrics(browseId);
+                  if (ytmLyrics != null) lyricsText = ytmLyrics.toString();
+                }
+              } catch (e) {
+                printERROR("Could not fetch YTM lyrics: $e");
+              }
+            }
+            if (lyricsText.isEmpty) {
+              final ovh = await musicSvc.getLyricsFromLyricsOvh(
+                song.title,
+                song.artist ?? '',
+              );
+              if (ovh != null) lyricsText = ovh;
+            }
+            if (lyricsText.isNotEmpty) {
+              final lrcPath = "$dirPath/$songTitle.lrc";
+              await File(lrcPath).writeAsString(lyricsText);
+              printINFO('Lyrics saved to $lrcPath');
+            }
+          } catch (e) {
+            printERROR('Lyrics fetch during download failed: $e');
           }
-          if (lyricsText.isEmpty) {
-            final ovh = await musicSvc.getLyricsFromLyricsOvh(
-                song.title, song.artist ?? '');
-            if (ovh != null) lyricsText = ovh;
-          }
+
+          song.extras?['url'] = filePath;
           if (lyricsText.isNotEmpty) {
-            final lrcPath = "$dirPath/$songTitle.lrc";
-            await File(lrcPath).writeAsString(lyricsText);
-            printINFO('Lyrics saved to $lrcPath');
+            song.extras?['lyrics'] = lyricsText;
           }
-        } catch (e) {
-          printERROR('Lyrics fetch during download failed: $e');
-        }
+          final songJson = MediaItemBuilder.toJson(song);
+          if (lyricsText.isNotEmpty) {
+            songJson['lyrics'] = lyricsText;
+          }
+          final streamInfoJson = requiredAudioStream.toJson();
+          streamInfoJson['url'] = filePath;
+          songJson["streamInfo"] = [true, streamInfoJson];
 
-        song.extras?['url'] = filePath;
-        if (lyricsText.isNotEmpty) {
-          song.extras?['lyrics'] = lyricsText;
-        }
-        final songJson = MediaItemBuilder.toJson(song);
-        if (lyricsText.isNotEmpty) {
-          songJson['lyrics'] = lyricsText;
-        }
-        final streamInfoJson = requiredAudioStream.toJson();
-        streamInfoJson['url'] = filePath;
-        songJson["streamInfo"] = [true, streamInfoJson];
+          Hive.box("SongDownloads").put(song.id, songJson);
+          Get.find<LibrarySongsController>().librarySongsList.add(song);
+          printINFO("Downloaded successfully");
 
-        Hive.box("SongDownloads").put(song.id, songJson);
-        Get.find<LibrarySongsController>().librarySongsList.add(song);
-        printINFO("Downloaded successfully");
+          final trackDetails = (song.extras?['trackDetails'])?.split("/");
+          final int? trackNumber = int.tryParse(trackDetails?[0] ?? "");
+          final int? totalTracks = int.tryParse(trackDetails?[1] ?? "");
 
-        final trackDetails = (song.extras?['trackDetails'])?.split("/");
-        final int? trackNumber = int.tryParse(trackDetails?[0] ?? "");
-        final int? totalTracks = int.tryParse(trackDetails?[1] ?? "");
-
-        try {
-          final imageUrl = song.artUri!.toString();
-          Tag tag = Tag(
+          try {
+            final imageUrl = song.artUri!.toString();
+            final coverBytes = (await NetworkAssetBundle(
+              Uri.parse(imageUrl),
+            ).load(imageUrl)).buffer.asUint8List();
+            await writeAudioTags(
+              filePath,
               title: song.title,
-              trackArtist: song.artist,
+              artist: song.artist,
               album: song.album,
-              year: int.tryParse(year ?? ""),
+              year: int.tryParse(year ?? ''),
+              genre: song.genre,
               trackNumber: trackNumber,
               trackTotal: totalTracks,
-              albumArtist: song.artist,
-              genre: song.genre,
-              pictures: [
-                Picture(
-                    bytes: (await NetworkAssetBundle(Uri.parse(imageUrl))
-                            .load(imageUrl))
-                        .buffer
-                        .asUint8List(),
-                    mimeType: MimeType.png,
-                    pictureType: PictureType.coverFront)
-              ]);
-
-          await AudioTags.write(filePath, tag);
-        } catch (e) {
-          printERROR("$e");
-        }
-        complete.complete();
-      },
-    ).onError(
-      (error, stackTrace) {
-        ScaffoldMessenger.of(Get.context!).showSnackBar(snackbar(
-            Get.context!, "downloadError3".tr,
-            size: SanckBarSize.BIG,
-            duration: const Duration(seconds: 2),
-            top: !GetPlatform.isDesktop));
-        printINFO(
-            "Downloading failed due to network/stream error! Please try again");
-        complete.complete();
-      },
-    );
+              coverBytes: coverBytes,
+            );
+          } catch (e) {
+            printERROR("$e");
+          }
+          complete.complete();
+        })
+        .onError((error, stackTrace) {
+          ScaffoldMessenger.of(Get.context!).showSnackBar(
+            snackbar(
+              Get.context!,
+              "downloadError3".tr,
+              size: SanckBarSize.BIG,
+              duration: const Duration(seconds: 2),
+              top: !GetPlatform.isDesktop,
+            ),
+          );
+          printINFO(
+            "Downloading failed due to network/stream error! Please try again",
+          );
+          complete.complete();
+        });
 
     return complete.future;
   }

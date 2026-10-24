@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:audiotags/audiotags.dart';
+
 import 'package:path/path.dart' as p;
+
+import 'audio_tags.dart';
 import 'helper.dart';
 
 class AudioMetadataResult {
@@ -30,7 +32,7 @@ class AudioMetadataReader {
 
     // 1. Try audiotags plugin (handles Android/iOS/Linux if available, catches Windows dll missing)
     try {
-      final tag = await AudioTags.read(filePath);
+      final tag = await readAudioTags(filePath);
       if (tag != null) {
         if (tag.title != null && tag.title!.trim().isNotEmpty) {
           title = tag.title!.trim();
@@ -41,8 +43,8 @@ class AudioMetadataReader {
         if (tag.album != null && tag.album!.trim().isNotEmpty) {
           album = tag.album!.trim();
         }
-        if (tag.pictures.isNotEmpty) {
-          pictureBytes = Uint8List.fromList(tag.pictures.first.bytes);
+        if (tag.pictureBytes != null && tag.pictureBytes!.isNotEmpty) {
+          pictureBytes = Uint8List.fromList(tag.pictureBytes!);
         }
       }
     } catch (e) {
@@ -116,7 +118,8 @@ class AudioMetadataReader {
 
     final majorVersion = bytes[3];
     final flags = bytes[5];
-    final tagSize = ((bytes[6] & 0x7F) << 21) |
+    final tagSize =
+        ((bytes[6] & 0x7F) << 21) |
         ((bytes[7] & 0x7F) << 14) |
         ((bytes[8] & 0x7F) << 7) |
         (bytes[9] & 0x7F);
@@ -128,13 +131,13 @@ class AudioMetadataReader {
     if ((flags & 0x40) != 0 && offset + 4 <= totalTagLen) {
       final extHeaderSize = (majorVersion == 4)
           ? (((bytes[offset] & 0x7F) << 21) |
-              ((bytes[offset + 1] & 0x7F) << 14) |
-              ((bytes[offset + 2] & 0x7F) << 7) |
-              (bytes[offset + 3] & 0x7F))
+                ((bytes[offset + 1] & 0x7F) << 14) |
+                ((bytes[offset + 2] & 0x7F) << 7) |
+                (bytes[offset + 3] & 0x7F))
           : ((bytes[offset] << 24) |
-              (bytes[offset + 1] << 16) |
-              (bytes[offset + 2] << 8) |
-              bytes[offset + 3]);
+                (bytes[offset + 1] << 16) |
+                (bytes[offset + 2] << 8) |
+                bytes[offset + 3]);
       offset += extHeaderSize;
     }
 
@@ -149,12 +152,14 @@ class AudioMetadataReader {
       final frameId = String.fromCharCodes(bytes.sublist(offset, offset + 4));
       int frameSize;
       if (majorVersion == 4) {
-        frameSize = ((bytes[offset + 4] & 0x7F) << 21) |
+        frameSize =
+            ((bytes[offset + 4] & 0x7F) << 21) |
             ((bytes[offset + 5] & 0x7F) << 14) |
             ((bytes[offset + 6] & 0x7F) << 7) |
             (bytes[offset + 7] & 0x7F);
       } else {
-        frameSize = (bytes[offset + 4] << 24) |
+        frameSize =
+            (bytes[offset + 4] << 24) |
             (bytes[offset + 5] << 16) |
             (bytes[offset + 6] << 8) |
             bytes[offset + 7];
@@ -311,7 +316,8 @@ class AudioMetadataReader {
       final headerByte = bytes[offset];
       isLast = (headerByte & 0x80) != 0;
       final blockType = headerByte & 0x7F;
-      final blockLen = (bytes[offset + 1] << 16) |
+      final blockLen =
+          (bytes[offset + 1] << 16) |
           (bytes[offset + 2] << 8) |
           bytes[offset + 3];
       offset += 4;
@@ -331,15 +337,18 @@ class AudioMetadataReader {
             if (p + 4 <= blockData.length) {
               final userCommentCount = bd.getUint32(p, Endian.little);
               p += 4;
-              for (int i = 0;
-                  i < userCommentCount && p + 4 <= blockData.length;
-                  i++) {
+              for (
+                int i = 0;
+                i < userCommentCount && p + 4 <= blockData.length;
+                i++
+              ) {
                 final commentLen = bd.getUint32(p, Endian.little);
                 p += 4;
                 if (p + commentLen <= blockData.length) {
                   final comment = utf8.decode(
-                      blockData.sublist(p, p + commentLen),
-                      allowMalformed: true);
+                    blockData.sublist(p, p + commentLen),
+                    allowMalformed: true,
+                  );
                   p += commentLen;
                   final eqIdx = comment.indexOf('=');
                   if (eqIdx != -1) {
@@ -408,10 +417,15 @@ class AudioMetadataReader {
   }
 
   static void _searchMp4Boxes(
-      Uint8List data, int start, int end, Map<String, dynamic> results) {
+    Uint8List data,
+    int start,
+    int end,
+    Map<String, dynamic> results,
+  ) {
     int p = start;
     while (p + 8 <= end) {
-      int boxSize = (data[p] << 24) |
+      int boxSize =
+          (data[p] << 24) |
           (data[p + 1] << 16) |
           (data[p + 2] << 8) |
           data[p + 3];
@@ -420,7 +434,8 @@ class AudioMetadataReader {
       if (boxSize == 1) {
         // 64-bit size
         if (p + 16 > end) break;
-        boxSize = (data[p + 12] << 24) |
+        boxSize =
+            (data[p + 12] << 24) |
             (data[p + 13] << 16) |
             (data[p + 14] << 8) |
             data[p + 15];
@@ -450,11 +465,17 @@ class AudioMetadataReader {
     }
   }
 
-  static void _extractMp4DataBox(Uint8List data, int start, int end,
-      String tagType, Map<String, dynamic> results) {
+  static void _extractMp4DataBox(
+    Uint8List data,
+    int start,
+    int end,
+    String tagType,
+    Map<String, dynamic> results,
+  ) {
     int p = start;
     while (p + 8 <= end) {
-      final size = (data[p] << 24) |
+      final size =
+          (data[p] << 24) |
           (data[p + 1] << 16) |
           (data[p + 2] << 8) |
           data[p + 3];
@@ -468,14 +489,17 @@ class AudioMetadataReader {
         if (payloadStart <= payloadEnd && payloadEnd <= end) {
           final payload = data.sublist(payloadStart, payloadEnd);
           if (tagType == '©nam' && results['title'] == null) {
-            results['title'] =
-                utf8.decode(payload, allowMalformed: true).trim();
+            results['title'] = utf8
+                .decode(payload, allowMalformed: true)
+                .trim();
           } else if (tagType == '©ART' && results['artist'] == null) {
-            results['artist'] =
-                utf8.decode(payload, allowMalformed: true).trim();
+            results['artist'] = utf8
+                .decode(payload, allowMalformed: true)
+                .trim();
           } else if (tagType == '©alb' && results['album'] == null) {
-            results['album'] =
-                utf8.decode(payload, allowMalformed: true).trim();
+            results['album'] = utf8
+                .decode(payload, allowMalformed: true)
+                .trim();
           } else if (tagType == 'covr' && results['picture'] == null) {
             results['picture'] = payload;
           }

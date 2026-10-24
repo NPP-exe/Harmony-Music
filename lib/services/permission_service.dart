@@ -1,16 +1,17 @@
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '/native_bindings/andrid_utils.dart' show SDKInt;
+
+import '/native_bindings/android_sdk.dart' as android_sdk;
 import '../utils/helper.dart';
 
 class PermissionService {
   static Future<bool> getExtStoragePermission() async {
-    if (GetPlatform.isDesktop) {
+    if (GetPlatform.isDesktop || GetPlatform.isWeb) {
       return true;
     }
     int sdk = 0;
     try {
-      sdk = SDKInt.Companion.getSDKInt();
+      sdk = android_sdk.getSDKInt();
     } catch (e) {
       printERROR("getSDKInt error: $e");
     }
@@ -42,7 +43,8 @@ class PermissionService {
       final storageStatus = await Permission.storage.request();
       if (storageStatus.isGranted) return true;
 
-      if (manageStatus.isPermanentlyDenied || storageStatus.isPermanentlyDenied) {
+      if (manageStatus.isPermanentlyDenied ||
+          storageStatus.isPermanentlyDenied) {
         await openAppSettings();
       }
       return await Permission.manageExternalStorage.isGranted ||

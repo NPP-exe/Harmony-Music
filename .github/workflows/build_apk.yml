@@ -17,11 +17,6 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     name: Build Android APK
     runs-on: ubuntu-latest
-    env:
-      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v6
@@ -37,9 +32,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install NDK 26.1.10909125
+      - name: Install NDK 26.3.11579264
         run: |
-          echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;26.1.10909125"
+          echo "y" | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "ndk;26.3.11579264"
 
       - name: Update lang data
         run: dart localization/generator.dart
@@ -49,22 +44,54 @@ jobs:
         run: echo "const updateCheckFlag = true;" > update_check_flag_file.dart
 
       - name: Configure Keystore for Release Signing
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "Decoding release keystore from secrets..."
-            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          set -euo pipefail
+
+          if [[ "$IS_FORK_PR" != "true" &&
+                "$GITHUB_REPOSITORY" == "NPP-exe/Harmony-Music" &&
+                -n "$KEYSTORE_BASE64" &&
+                -n "$KEY_STORE_PASSWORD" &&
+                -n "$KEY_PASSWORD" ]]; then
+            echo "Using release keystore from repository secrets."
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+            STORE_PASSWORD="$KEY_STORE_PASSWORD"
+            KEY_PASS="$KEY_PASSWORD"
+            KEY_ALIAS_VALUE="${KEY_ALIAS:-harmonymusic}"
+            SIGNING_MODE="release"
           else
-            echo "Using repository release keystore (upload-keystore.jks)."
+            echo "Generating a temporary keystore for this non-release build."
+            rm -f android/app/upload-keystore.jks
+            STORE_PASSWORD="$(openssl rand -hex 24)"
+            KEY_PASS="$STORE_PASSWORD"
+            KEY_ALIAS_VALUE="temporary"
+            SIGNING_MODE="temporary"
+            keytool -genkeypair \
+              -alias "$KEY_ALIAS_VALUE" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -keystore android/app/upload-keystore.jks \
+              -storepass "$STORE_PASSWORD" \
+              -keypass "$KEY_PASS" \
+              -dname "CN=Temporary Harmony Music Build,O=HarmonyMusic,C=US"
           fi
+
           cp android/app/upload-keystore.jks android/upload-keystore.jks
           cat <<EOF > android/key.properties
-          storePassword=${KEY_STORE_PASSWORD:-HarmonyMusicPass2026}
-          keyPassword=${KEY_PASSWORD:-HarmonyMusicPass2026}
-          keyAlias=${KEY_ALIAS:-harmonymusic}
+          storePassword=${STORE_PASSWORD}
+          keyPassword=${KEY_PASS}
+          keyAlias=${KEY_ALIAS_VALUE}
           storeFile=upload-keystore.jks
           EOF
           cp android/key.properties android/app/key.properties
-          echo "Keystore and key.properties successfully configured."
+          echo "signing_mode=$SIGNING_MODE" >> "$GITHUB_OUTPUT"
 
       - name: Flutter clean
         run: flutter clean
@@ -104,5 +131,5 @@ jobs:
       - name: Upload All Release APKs
         uses: actions/upload-artifact@v4
         with:
-          name: harmonymusic-all-apks
+          name: harmonymusic-all-apks-${{ steps.keystore.outputs.signing_mode }}
           path: build/app/outputs/flutter-apk/*.apk
