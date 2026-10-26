@@ -92,7 +92,7 @@ class PlaylistExportDialog extends StatelessWidget {
   }
 
   Future<void> _openInYouTubeMusic() async {
-    final videoIds = controller.songList.map((song) => song.id).join(',');
+    final videoIds = controller.songsToExport.map((song) => song.id).join(',');
     final url = 'https://www.youtube.com/watch_videos?video_ids=$videoIds';
     final ytmUrl = await _generateYTMUrl(url);
 
@@ -127,7 +127,7 @@ class PlaylistExportDialog extends StatelessWidget {
   }
 
   Future<void> _copyYouTubeMusicLink() async {
-    final videoIds = controller.songList.map((song) => song.id).join(',');
+    final videoIds = controller.songsToExport.map((song) => song.id).join(',');
     final url = 'https://www.youtube.com/watch_videos?video_ids=$videoIds';
     final ytmUrl = await _generateYTMUrl(url);
 
