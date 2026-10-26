@@ -2041,8 +2041,17 @@ Map<String, Map<String, String>> get keys => {
     "keepScreenOnWhilePlayingDes": "If enabled, the device screen will stay awake while music is playing",
     "imported": "imported",
     "importedPlaylist": "Imported playlist",
+    "restorePreparationError": "Could not prepare the backup. Current data was preserved. Check the file and available disk space, then try again.",
+    "restoreRolledBack": "Restoration failed. Original files were preserved or recovered. Restart the app before continuing.",
+    "restoreRecoveryRequired": "Restoration could not be completed. Close and reopen the app to retry automatic recovery before your data is opened.",
     "importRejectedSongs": "Songs not imported",
-    "importUntitledSong": "Untitled"
+    "importUntitledSong": "Untitled",
+    "backupRecoveryTitle": "Application data recovery",
+    "backupRecoveryDescription": "The recovery check could not be completed. Your databases have not been opened. Review the error below and try again.",
+    "backupRecoveryQuarantine": "Quarantine recovery and open app",
+    "backupRecoveryConfirmTitle": "Open without completing recovery?",
+    "backupRecoveryConfirmDescription": "Pending files will be preserved in quarantine. The app will open the data still at its destination; some playlists, songs or settings may be missing. Continue?",
+    "backupRecoveryContinue": "Continue"
 },"eo" : {
     "renamePlaylist": "Alinomi Ludliston",
     "trending": "Populara",
@@ -7045,8 +7054,17 @@ Map<String, Map<String, String>> get keys => {
     "exportToYouTubeMusic": "Exportar para o YouTube Music",
     "exportToYouTubeMusicSubtitle": "Adiciona a playlist (menos de 50 músicas) à fila atual. Salve-a no YouTube Music após abrir.",
     "linkCopied": "Link copiado para a área de transferência",
+    "restorePreparationError": "Não foi possível preparar o backup. Os dados atuais foram preservados. Verifique o arquivo e o espaço em disco e tente novamente.",
+    "restoreRolledBack": "A restauração falhou. Os arquivos originais foram preservados ou recuperados. Reinicie o aplicativo para continuar.",
+    "restoreRecoveryRequired": "A restauração não foi concluída. Feche e abra o aplicativo para tentar a recuperação automática antes de abrir seus dados.",
     "importRejectedSongs": "Músicas não importadas",
-    "importUntitledSong": "Sem título"
+    "importUntitledSong": "Sem título",
+    "backupRecoveryTitle": "Recuperação dos dados do aplicativo",
+    "backupRecoveryDescription": "Não foi possível concluir a verificação de recuperação. Os bancos de dados não foram abertos. Verifique o erro abaixo e tente novamente.",
+    "backupRecoveryQuarantine": "Isolar recuperação e abrir o app",
+    "backupRecoveryConfirmTitle": "Abrir sem concluir a recuperação?",
+    "backupRecoveryConfirmDescription": "Os arquivos pendentes serão preservados em quarentena. O aplicativo abrirá os dados que ainda estiverem no destino; algumas playlists, músicas ou configurações podem estar ausentes. Continuar?",
+    "backupRecoveryContinue": "Continuar"
 },"ro" : {
     "minutes": "minute",
     "results": "Rezultate",

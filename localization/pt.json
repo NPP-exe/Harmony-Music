@@ -277,6 +277,15 @@
     "exportToYouTubeMusic": "Exportar para o YouTube Music",
     "exportToYouTubeMusicSubtitle": "Adiciona a playlist (menos de 50 músicas) à fila atual. Salve-a no YouTube Music após abrir.",
     "linkCopied": "Link copiado para a área de transferência",
+    "restorePreparationError": "Não foi possível preparar o backup. Os dados atuais foram preservados. Verifique o arquivo e o espaço em disco e tente novamente.",
+    "restoreRolledBack": "A restauração falhou. Os arquivos originais foram preservados ou recuperados. Reinicie o aplicativo para continuar.",
+    "restoreRecoveryRequired": "A restauração não foi concluída. Feche e abra o aplicativo para tentar a recuperação automática antes de abrir seus dados.",
     "importRejectedSongs": "Músicas não importadas",
-    "importUntitledSong": "Sem título"
+    "importUntitledSong": "Sem título",
+    "backupRecoveryTitle": "Recuperação dos dados do aplicativo",
+    "backupRecoveryDescription": "Não foi possível concluir a verificação de recuperação. Os bancos de dados não foram abertos. Verifique o erro abaixo e tente novamente.",
+    "backupRecoveryQuarantine": "Isolar recuperação e abrir o app",
+    "backupRecoveryConfirmTitle": "Abrir sem concluir a recuperação?",
+    "backupRecoveryConfirmDescription": "Os arquivos pendentes serão preservados em quarentena. O aplicativo abrirá os dados que ainda estiverem no destino; algumas playlists, músicas ou configurações podem estar ausentes. Continuar?",
+    "backupRecoveryContinue": "Continuar"
 }
