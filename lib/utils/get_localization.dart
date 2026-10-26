@@ -2038,7 +2038,11 @@ Map<String, Map<String, String>> get keys => {
     "exportToYouTubeMusicSubtitle": "It will push your playlist (songs < 50) to current queue, don't forget to add to playlist/save after opening in YtMusic",
     "linkCopied": "Link copied to clipboard",
     "keepScreenOnWhilePlaying": "Keep screen on while playing",
-    "keepScreenOnWhilePlayingDes": "If enabled, the device screen will stay awake while music is playing"
+    "keepScreenOnWhilePlayingDes": "If enabled, the device screen will stay awake while music is playing",
+    "imported": "imported",
+    "importedPlaylist": "Imported playlist",
+    "importRejectedSongs": "Songs not imported",
+    "importUntitledSong": "Untitled"
 },"eo" : {
     "renamePlaylist": "Alinomi Ludliston",
     "trending": "Populara",
@@ -7032,13 +7036,17 @@ Map<String, Map<String, String>> get keys => {
     "importLargeFileNote": "Nota: Playlists longas pode levar mais tempo para importar",
     "keepScreenOnWhilePlaying": "Manter a tela ligada durante a reprodução",
     "keepScreenOnWhilePlayingDes": "Se ativado, a tela do dispositivo permanecerá ligada enquanto a música estiver sendo reproduzida",
+    "imported": "importada",
+    "importedPlaylist": "Playlist importada",
     "exportPlaylistJson": "Exportar playlist para JSON",
     "exportPlaylistJsonSubtitle": "Este formato pode ser importado",
     "exportPlaylistCsv": "Exportar playlist para CSV",
     "exportPlaylistCsvSubtitle": "Este formato não pode ser importado aqui",
     "exportToYouTubeMusic": "Exportar para o YouTube Music",
     "exportToYouTubeMusicSubtitle": "Adiciona a playlist (menos de 50 músicas) à fila atual. Salve-a no YouTube Music após abrir.",
-    "linkCopied": "Link copiado para a área de transferência"
+    "linkCopied": "Link copiado para a área de transferência",
+    "importRejectedSongs": "Músicas não importadas",
+    "importUntitledSong": "Sem título"
 },"ro" : {
     "minutes": "minute",
     "results": "Rezultate",
