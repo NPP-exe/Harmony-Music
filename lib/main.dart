@@ -21,10 +21,29 @@ import 'ui/screens/Home/home_screen_controller.dart';
 import 'ui/screens/Library/library_controller.dart';
 import 'utils/system_tray.dart';
 import 'utils/update_check_flag_file.dart';
+import 'services/backup_restore_service.dart';
+import 'services/backup_restore_journal.dart';
+import 'ui/widgets/backup_recovery_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initHive();
+  await _startApplication();
+}
+
+Future<void> _startApplication() async {
+  try {
+    await initHive();
+  } on BackupRecoveryException catch (error) {
+    debugPrint(error.toString());
+    runApp(BackupRecoveryScreen(
+        error: error,
+        onRetry: _startApplication,
+        onQuarantine: () async {
+          await (await _backupRestoreService()).quarantinePending();
+          await _startApplication();
+        }));
+    return;
+  }
   _setAppInitPrefs();
   startApplicationServices();
   Get.put<AudioHandler>(await initAudioService(), permanent: true);
@@ -111,19 +130,27 @@ Future<void> startApplicationServices() async {
   }
 }
 
-initHive() async {
+Future<void> initHive() async {
   if (GetPlatform.isWeb) {
     await Hive.initFlutter();
   } else {
-    final applicationDataDirectoryPath = GetPlatform.isDesktop
-        ? "${(await getApplicationSupportDirectory()).path}/db"
-        : (await getApplicationDocumentsDirectory()).path;
-    await Hive.initFlutter(applicationDataDirectoryPath);
+    final restore = await _backupRestoreService();
+    await restore.recoverPending();
+    Hive.init(restore.databaseDirectory);
   }
   await Hive.openBox("SongsCache");
   await Hive.openBox("SongDownloads");
   await Hive.openBox('SongsUrlCache');
   await Hive.openBox("AppPrefs");
+}
+
+Future<BackupRestoreService> _backupRestoreService() async {
+  final support = (await getApplicationSupportDirectory()).path;
+  final database = GetPlatform.isDesktop
+      ? "$support/db"
+      : (await getApplicationDocumentsDirectory()).path;
+  return BackupRestoreService(
+      databaseDirectory: database, supportDirectory: support);
 }
 
 void _setAppInitPrefs() {
