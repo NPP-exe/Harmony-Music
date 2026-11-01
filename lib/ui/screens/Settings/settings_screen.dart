@@ -57,10 +57,10 @@ class SettingsScreen extends StatelessWidget {
                           type: MaterialType.transparency,
                           child: ListTile(
                             onTap: () {
-                              final url = settingsController
-                                      .releaseUrl.value.isNotEmpty
-                                  ? settingsController.releaseUrl.value
-                                  : appReleasesUrl;
+                              final url =
+                                  settingsController.releaseUrl.value.isNotEmpty
+                                      ? settingsController.releaseUrl.value
+                                      : appReleasesUrl;
                               launchUrl(
                                 Uri.parse(url),
                                 mode: LaunchMode.externalApplication,
@@ -74,8 +74,7 @@ class SettingsScreen extends StatelessWidget {
                             leading:
                                 const CircleAvatar(child: Icon(Icons.download)),
                             title: Text(
-                              settingsController
-                                      .latestVersion.value.isNotEmpty
+                              settingsController.latestVersion.value.isNotEmpty
                                   ? "${"newVersionAvailable".tr} (${settingsController.latestVersion.value})"
                                   : "newVersionAvailable".tr,
                             ),
@@ -338,6 +337,29 @@ class SettingsScreen extends StatelessWidget {
                       },
                     ),
                   ]),
+              if (GetPlatform.isWeb)
+                CustomExpansionTile(
+                  title: 'Web privacy and data',
+                  icon: Icons.privacy_tip_outlined,
+                  children: [
+                    Obx(
+                      () => ListTile(
+                        contentPadding:
+                            const EdgeInsets.only(left: 5, right: 10),
+                        title: const Text('Show the experimental notice'),
+                        subtitle: const Text(
+                          'Show the notice every time the web app starts.',
+                        ),
+                        trailing: CustSwitch(
+                          value: settingsController
+                              .webExperimentWarningEnabled.value,
+                          onChanged:
+                              settingsController.setWebExperimentWarningEnabled,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               CustomExpansionTile(
                 title: "music&Playback".tr,
                 icon: Icons.music_note,
@@ -725,9 +747,13 @@ class SettingsScreen extends StatelessWidget {
                 () => Text(
                   "Harmony Music ${settingsController.formattedVersion} • $appGithubUser",
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).textTheme.bodySmall?.color?.withAlpha(120),
-                    letterSpacing: 0.5,
-                  ),
+                        color: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.color
+                            ?.withAlpha(120),
+                        letterSpacing: 0.5,
+                      ),
                 ),
               ),
             ),
@@ -736,9 +762,7 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
-
 }
-
 
 class ThemeSelectorDialog extends StatelessWidget {
   const ThemeSelectorDialog({super.key});

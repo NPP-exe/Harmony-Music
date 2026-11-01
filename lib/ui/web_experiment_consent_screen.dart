@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:hive/hive.dart';
 
 import 'home.dart';
 
@@ -13,30 +12,24 @@ class WebExperimentConsentScreen extends StatefulWidget {
 
 class _WebExperimentConsentScreenState
     extends State<WebExperimentConsentScreen> {
-  bool _acknowledged = false;
+  final _consentController = TextEditingController();
   bool _saving = false;
 
-  Future<void> _continue() async {
-    if (!_acknowledged || _saving) return;
+  bool get _hasConsented =>
+      _consentController.text.trim().toLowerCase() == 'i consent';
+
+  void _continue() {
+    if (!_hasConsented || _saving) return;
     setState(() => _saving = true);
-    try {
-      await Hive.box('AppPrefs').put('webExperimentConsentVersion', 1);
-      if (!mounted) return;
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const Home()),
-      );
-    } catch (error, stackTrace) {
-      debugPrint('Could not save web experiment consent: $error\n$stackTrace');
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not save your choice in browser storage. Please try again.',
-          ),
-        ),
-      );
-    }
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(builder: (_) => const Home()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _consentController.dispose();
+    super.dispose();
   }
 
   @override
@@ -74,36 +67,48 @@ class _WebExperimentConsentScreenState
                       const SizedBox(height: 12),
                       const _NoticeBullet(
                         text:
-                            'This is experimental software. Features, playback, and third-party services may be unavailable or change without notice.',
+                            'This is an experimental, unofficial application. Features, playback, availability, and third-party services may change or stop working without notice. Use is at your own discretion.',
                       ),
                       const _NoticeBullet(
                         text:
-                            'The app stores preferences, playlists, favorites, and recent playback data in this browser using local storage (IndexedDB). Clearing this site’s browser data may remove it.',
+                            'Preferences, favorites, playlists, search history, and other app data may be stored in this browser using IndexedDB. Browser storage can be lost, cleared, or accessed by anyone with access to this browser profile. Do not rely on it as your only backup.',
                       ),
                       const _NoticeBullet(
                         text:
-                            'Music information, images, and audio are requested from third-party services, including Invidious instances that relay YouTube content. Those services may process request data such as your IP address under their own policies.',
+                            'The app connects to third-party services, including Invidious instances and YouTube, to retrieve music information, images, and audio. These services and your network provider may receive or process your IP address, requests, and technical data under their own privacy policies.',
                       ),
                       const _NoticeBullet(
                         text:
-                            'The app does not require a YouTube login. Your browser and third-party services may use cookies according to their own settings and policies.',
+                            'The app does not require a YouTube login. It does not control cookies or data collected by your browser, hosting provider, or third-party services. Review their policies and browser settings separately.',
                       ),
                       const _NoticeBullet(
                         text:
-                            'You are responsible for using the app in accordance with applicable laws and the terms of services you access. This notice is informational; it does not waive legal rights or guarantee legal protection.',
+                            'You are responsible for ensuring that your use, access, and any downloads comply with applicable laws, copyright rules, and the terms of each service. Only access or use content you are authorized to use.',
+                      ),
+                      const _NoticeBullet(
+                        text:
+                            'Harmony Music is not affiliated with, endorsed by, or an official client of YouTube or Google. Third-party services and content are not controlled or guaranteed by this app.',
+                      ),
+                      const _NoticeBullet(
+                        text:
+                            'The app is provided experimentally and may contain errors, interruptions, inaccurate metadata, or data loss. No uninterrupted availability or error-free operation is promised.',
+                      ),
+                      const _NoticeBullet(
+                        text:
+                            'This notice is for information only, is not legal advice, and does not waive rights or guarantee immunity from claims or liability. Legal obligations vary by location; seek qualified advice if needed.',
                       ),
                       const SizedBox(height: 12),
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        value: _acknowledged,
-                        onChanged: _saving
-                            ? null
-                            : (value) => setState(
-                                  () => _acknowledged = value ?? false,
-                                ),
-                        title: const Text(
-                          'I have read and understand this information, and want to continue.',
+                      TextField(
+                        controller: _consentController,
+                        enabled: !_saving,
+                        textCapitalization: TextCapitalization.sentences,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Type “I consent” to continue',
+                          hintText: 'I consent',
+                          helperText:
+                              'By entering this phrase, you confirm that you have read and understand the notice above.',
+                          border: OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -111,7 +116,7 @@ class _WebExperimentConsentScreenState
                         alignment: Alignment.centerRight,
                         child: FilledButton(
                           onPressed:
-                              _acknowledged && !_saving ? _continue : null,
+                              _hasConsented && !_saving ? _continue : null,
                           child: Text(
                             _saving ? 'Saving…' : 'Accept and continue',
                           ),

@@ -49,6 +49,16 @@ class GesturePlayer extends StatelessWidget {
             ).whenComplete(() => Get.delete<SongInfoController>());
           },
         ),
+        Align(
+          alignment: Alignment.topLeft,
+          child: SafeArea(
+            child: IconButton(
+              tooltip: 'Minimize player',
+              icon: const Icon(Icons.keyboard_arrow_down, size: 32),
+              onPressed: playerController.playerPanelController.close,
+            ),
+          ),
+        ),
         IgnorePointer(
           child: Align(
             child: Center(

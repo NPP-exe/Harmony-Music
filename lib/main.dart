@@ -74,7 +74,7 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'Harmony Music',
       home: GetPlatform.isWeb &&
-              Hive.box("AppPrefs").get('webExperimentConsentVersion') != 1
+              (Hive.box("AppPrefs").get('webExperimentWarningEnabled') ?? true)
           ? const WebExperimentConsentScreen()
           : const Home(),
       debugShowCheckedModeBanner: false,
