@@ -366,6 +366,7 @@ class YoutubeHttpClient extends http.BaseClient {
     if (request is http.Request) {
       _logger.finer('Request body: ${request.body}');
     }
+
     return _httpClient.send(request);
   }
 }

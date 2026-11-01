@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 
 import '../utils/helper.dart';
+import '../utils/web_cors_proxy.dart';
 
 class PipedServices extends GetxService {
   final Map<String, dynamic> _headers = {};
@@ -70,17 +71,20 @@ class PipedServices extends GetxService {
     final url = isInstanceListReq
         ? "https://piped-instances.kavin.rocks/"
         : "$_insApiUrl$endpoint";
+    final requestUrl = isInstanceListReq || isSongListReq
+        ? withWebCorsProxy(Uri.parse(url)).toString()
+        : url;
     try {
       final response = reqType == "post"
           ? await _dio.post(
-              url,
+              requestUrl,
               data: data,
               options: Options(
                 headers: _headers,
               ),
             )
           : await _dio.get(
-              url,
+              requestUrl,
               options: (isInstanceListReq || isSongListReq)
                   ? null
                   : Options(

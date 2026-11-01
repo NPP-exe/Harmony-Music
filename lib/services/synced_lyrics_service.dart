@@ -1,6 +1,7 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:harmonymusic/utils/helper.dart';
+import 'package:harmonymusic/utils/web_cors_proxy.dart';
 import 'package:hive/hive.dart';
 
 class SyncedLyricsService {
@@ -16,7 +17,7 @@ class SyncedLyricsService {
     final url =
         'https://lrclib.net/api/get?artist_name=${song.artist?.replaceAll(" ", "+")}&track_name=${song.title.replaceAll(" ", "+")}&album_name=${song.album?.replaceAll(" ", "+")}&duration=$dur';
     try {
-      final response = (await Dio().get(url)).data;
+      final response = (await createWebAwareDio().get(url)).data;
       if (response["syncedLyrics"] != null) {
         printINFO("Synced Available");
         final lyricsData = {

@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -6,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:html/parser.dart' as html_parser;
 
 import '/ui/screens/Playlist/playlist_screen_controller.dart';
+import '/utils/web_cors_proxy.dart';
 import 'common_dialog_widget.dart';
 import 'snackbar.dart';
 
@@ -108,7 +108,7 @@ class PlaylistExportDialog extends StatelessWidget {
     }
 
     try {
-      final x = (await Dio().get(ytSimpleUrl)).data;
+      final x = (await createWebAwareDio().get(ytSimpleUrl)).data;
       final document = html_parser.parse(x);
 
       // Find the <link> element with rel="canonical"
