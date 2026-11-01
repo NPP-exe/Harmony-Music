@@ -79,10 +79,10 @@ class SortWidget extends StatelessWidget {
   final Function(SortType, bool) onSort;
   final bool isImportFeatureRequired;
 
-  void _showImportDialog(BuildContext context) {
-    showDialog(
+  Future<void> _showImportDialog(BuildContext context) async {
+    final shouldImport = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: Theme.of(context).cardColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(15),
@@ -121,12 +121,7 @@ class SortWidget extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.file_open),
                 label: Text("selectFile".tr),
-                onPressed: () {
-                  Get.find<LibraryPlaylistsController>()
-                      .importPlaylistFromJson(context);
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
+                onPressed: () => Navigator.pop(dialogContext, true),
               ),
             ),
           ],
@@ -136,12 +131,15 @@ class SortWidget extends StatelessWidget {
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.secondary,
             ),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: Text("close".tr),
           ),
         ],
       ),
     );
+    if (shouldImport == true && context.mounted) {
+      await Get.find<LibraryPlaylistsController>().importPlaylistFromJson(context);
+    }
   }
 
   @override

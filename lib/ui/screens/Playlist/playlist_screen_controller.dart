@@ -40,6 +40,10 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
   String generatedYtmPlaylistUrl = '';
 
+  // Searching changes songList for display only. Exports must use the full list.
+  List<MediaItem> get songsToExport =>
+      List.of(isSearchingOn.value ? tempListContainer : songList);
+
   // Title animation
 
   late AnimationController _animationController;
@@ -324,7 +328,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       // Create playlist data map
       final playlistData = {
         "playlistInfo": playlist.value.toJson(),
-        "songs": songList.map((song) => MediaItemBuilder.toJson(song)).toList(),
+        "songs": songsToExport.map(MediaItemBuilder.toJson).toList(),
         "exportDate": DateTime.now().toIso8601String(),
         "appVersion": Get.find<SettingsScreenController>().currentVersion,
       };
@@ -492,7 +496,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     buffer.writeln('PlaylistBrowseId,PlaylistName,MediaId,Title,Artists,Duration,ThumbnailUrl,AlbumId,AlbumTitle,ArtistIds');
     
     // CSV Rows - one for each song
-    for (final song in songList) {
+    for (final song in songsToExport) {
       // Keep playlistBrowseId blank for offline/piped playlists
       final playlistBrowseId = (!playlist.value.isCloudPlaylist || playlist.value.isPipedPlaylist)
           ? ''

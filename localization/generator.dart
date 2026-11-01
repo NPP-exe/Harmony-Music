@@ -6,11 +6,13 @@ Future<void> generate() async {
   String allLangData = "";
 
   var myDir = Directory('./localization');
-  myDir.listSync(recursive: true, followLinks: false).forEach((entity) {
+  final files = myDir.listSync(recursive: true, followLinks: false)
+    ..sort((a, b) => a.path.compareTo(b.path));
+  for (final entity in files) {
     if (entity.uri.toString().contains("generator")) {
-      return;
+      continue;
     }
-    String fileContent = (entity as File).readAsStringSync();
+    String fileContent = (entity as File).readAsStringSync().trimRight();
     String langCode = entity.uri.pathSegments.last.split(".")[0];
     if (langCode == "zh_Hant") {
       langCode = "zh-TW";
@@ -18,7 +20,7 @@ Future<void> generate() async {
       langCode = "zh-CN";
     }
     allLangData = """$allLangData"$langCode" : $fileContent,""";
-  });
+  }
 
   String content = """
 // This is auto generated file 

@@ -1,16 +1,16 @@
 import 'dart:io';
 
-import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:terminate_restart/terminate_restart.dart';
 
 import '/ui/screens/Settings/settings_screen_controller.dart';
 import '/utils/helper.dart';
 import '../../services/permission_service.dart';
+import '../../services/backup_restore_service.dart';
 import 'common_dialog_widget.dart';
 
 class RestoreDialog extends StatelessWidget {
@@ -19,7 +19,7 @@ class RestoreDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final restoreDialogController = Get.put(RestoreDialogController());
-    return CommonDialog(
+    final dialog = CommonDialog(
       child: Container(
         height: 300,
         padding:
@@ -37,31 +37,39 @@ class RestoreDialog extends StatelessWidget {
               SizedBox(
                 height: 150,
                 child: Center(
-                  child: Obx(() => restoreDialogController.restoreProgress
-                              .toInt() ==
-                          restoreDialogController.filesToRestore.toInt()
-                      ? Text(
-                          "restoreMsg".tr,
-                          textAlign: TextAlign.center,
-                        )
-                      : restoreDialogController.processingFiles.isTrue
-                          ? Text("processFiles".tr)
-                          : restoreDialogController.restoreRunning.isTrue
-                              ? Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                        "${restoreDialogController.restoreProgress.toInt()}/${restoreDialogController.filesToRestore.toInt()}",
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge),
-                                    const SizedBox(
-                                      height: 10,
-                                    ),
-                                    Text("restoring".tr)
-                                  ],
-                                )
-                              : Text("letsStrart".tr)),
+                  child: Obx(() {
+                    if (restoreDialogController.restoreError.isNotEmpty) {
+                      return SingleChildScrollView(
+                        child: SelectableText(
+                            restoreDialogController.restoreError.value,
+                            textAlign: TextAlign.center),
+                      );
+                    }
+                    return restoreDialogController.restoreProgress.toInt() ==
+                            restoreDialogController.filesToRestore.toInt()
+                        ? Text(
+                            "restoreMsg".tr,
+                            textAlign: TextAlign.center,
+                          )
+                        : restoreDialogController.processingFiles.isTrue
+                            ? Text("processFiles".tr)
+                            : restoreDialogController.restoreRunning.isTrue
+                                ? Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                          "${restoreDialogController.restoreProgress.toInt()}/${restoreDialogController.filesToRestore.toInt()}",
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge),
+                                      const SizedBox(
+                                        height: 10,
+                                      ),
+                                      Text("restoring".tr)
+                                    ],
+                                  )
+                                : Text("letsStrart".tr);
+                  }),
                 ),
               ),
               SizedBox(
@@ -73,8 +81,10 @@ class RestoreDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10)),
                     child: InkWell(
                       onTap: () {
-                        if (restoreDialogController.restoreProgress.toInt() ==
-                            restoreDialogController.filesToRestore.toInt()) {
+                        if (restoreDialogController.restartRequired.value) {
+                          if (restoreDialogController.recoveryRequired.value) {
+                            exit(0);
+                          }
                           GetPlatform.isAndroid
                               ? TerminateRestart.instance.restartApp(
                                   options: const TerminateRestartOptions(
@@ -99,12 +109,12 @@ class RestoreDialog extends StatelessWidget {
                                 horizontal: 15.0, vertical: 10),
                             child: Obx(
                               () => Text(
-                                restoreDialogController.restoreProgress
-                                            .toInt() ==
-                                        restoreDialogController.filesToRestore
-                                            .toInt()
-                                    ? "restartApp".tr
-                                    : "restore".tr,
+                                restoreDialogController.recoveryRequired.value
+                                    ? "closeApp".tr
+                                    : restoreDialogController
+                                            .restartRequired.value
+                                        ? "restartApp".tr
+                                        : "restore".tr,
                                 style: TextStyle(
                                     color: Theme.of(context).canvasColor),
                               ),
@@ -121,100 +131,94 @@ class RestoreDialog extends StatelessWidget {
         ),
       ),
     );
+    return Obx(() => PopScope(
+          canPop: !restoreDialogController.restartRequired.value &&
+              !restoreDialogController.processingFiles.value &&
+              !restoreDialogController.restoreRunning.value,
+          child: dialog,
+        ));
   }
 }
 
 class RestoreDialogController extends GetxController {
+  final restartRequired = false.obs;
+  final recoveryRequired = false.obs;
   final restoreRunning = false.obs;
   final restoreProgress = (-1).obs;
   final filesToRestore = (0).obs;
   final processingFiles = false.obs;
+  final restoreError = ''.obs;
 
   Future<void> restore() async {
-    if (!await PermissionService.getExtStoragePermission()) {
-      return;
-    }
-
-    if (!await PermissionService.getExtStoragePermission()) {
-      return;
-    }
-
-    final FilePickerResult? pickedFileResult = await FilePicker.platform
-        .pickFiles(
-            dialogTitle: "Select backup file",
-            type: GetPlatform.isWindows ? FileType.custom : FileType.any,
-            allowedExtensions: GetPlatform.isWindows ? ['hmb'] : null,
-            allowMultiple: false);
-
-    final String? pickedFile = pickedFileResult?.files.first.path;
-
-    // is this check necessary?
-    if (pickedFile == '/' || pickedFile == null) {
+    if (processingFiles.value ||
+        restoreRunning.value ||
+        restartRequired.value) {
       return;
     }
     processingFiles.value = true;
-    await Future.delayed(const Duration(seconds: 4));
-    final restoreFilePath = pickedFile.toString();
-    final supportDirPath = Get.find<SettingsScreenController>().supportDirPath;
-    final dbDirPath = await Get.find<SettingsScreenController>().dbDir;
-    final Directory dbDir = Directory(dbDirPath);
-    printInfo(info: dbDir.path);
-    await Get.find<SettingsScreenController>().closeAllDatabases();
+    restoreError.value = '';
+    PreparedBackup? prepared;
+    try {
+      if (!await PermissionService.getExtStoragePermission()) return;
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: 'Select backup file',
+        type: GetPlatform.isWindows ? FileType.custom : FileType.any,
+        allowedExtensions: GetPlatform.isWindows ? ['hmb'] : null,
+        allowMultiple: false,
+      );
+      final path = result?.files.single.path;
+      if (path == null || path == '/') return;
+      final service = BackupRestoreService(
+        databaseDirectory: await Get.find<SettingsScreenController>().dbDir,
+        supportDirectory: Get.find<SettingsScreenController>().supportDirPath,
+      );
+      prepared = await service.prepare(path,
+          relocateDownloads: GetPlatform.isWindows || GetPlatform.isLinux);
+      filesToRestore.value = prepared.files.length;
+      restoreProgress.value = 0;
+      await service.apply(prepared,
+          closeDatabases: () async {
+            restartRequired.value = true;
+            processingFiles.value = false;
+            restoreRunning.value = true;
+            if (Get.isRegistered<AudioHandler>()) {
+              await Get.find<AudioHandler>().stop();
+            }
+            await Get.find<SettingsScreenController>().closeAllDatabases();
+          },
+          onProgress: (progress) => restoreProgress.value = progress);
 
-    //delele all the files with extension .hive
-    for (final file in dbDir.listSync()) {
-      if (file is File && file.path.endsWith('.hive')) {
-        await file.delete();
+      // Picker cache cleanup is optional and cannot invalidate a committed restore.
+      try {
+        final cache = Directory(
+            '${(await getApplicationCacheDirectory()).path}/file_picker');
+        if (await cache.exists()) await cache.delete(recursive: true);
+      } catch (e) {
+        printERROR('Error clearing file picker cache: $e');
       }
-    }
-    final bytes = await File(restoreFilePath).readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes);
-    filesToRestore.value = archive.length;
-    restoreProgress.value = 0;
-    processingFiles.value = false;
-    restoreRunning.value = true;
-    for (final file in archive) {
-      final filename = file.name;
-      printINFO(filename);
-      if (file.isFile) {
-        final data = file.content as List<int>;
-        final targetFileDir =
-            filename.endsWith(".m4a") || filename.endsWith(".opus")
-                ? "$supportDirPath/Music"
-                : filename.endsWith(".png")
-                    ? "$supportDirPath/thumbnails"
-                    : dbDirPath;
-        final outputFile = File('$targetFileDir/$filename');
-        await outputFile.create(recursive: true);
-        await outputFile.writeAsBytes(data);
-        restoreProgress.value++;
+    } catch (e) {
+      printERROR('Error restoring backup: $e');
+      restoreProgress.value = -1;
+      filesToRestore.value = 0;
+      if (e is BackupRestoreException && e.restartRequired) {
+        restartRequired.value = true;
+        recoveryRequired.value = e.recoveryRequired;
+        restoreError.value = e.recoveryRequired
+            ? 'restoreRecoveryRequired'.tr
+            : 'restoreRolledBack'.tr;
+      } else {
+        restoreError.value = 'restorePreparationError'.tr;
       }
-    }
-    // Clear file picker temp directory
-    final tempFilePickerDirPath =
-        "${(await getApplicationCacheDirectory()).path}/file_picker";
-    final tempFilePickerDir = Directory(tempFilePickerDirPath);
-    if (tempFilePickerDir.existsSync()) {
-      await tempFilePickerDir.delete(recursive: true);
-    }
-
-    // change file download path to support dir path in songs if system is windows or linux
-    if (GetPlatform.isWindows || GetPlatform.isLinux) {
-      // open the restored box
-      final newSongBox = await Hive.openBox("SongDownloads");
-      final downloadedSongs = newSongBox.values.toList();
-      for(final song in downloadedSongs) {
-        final songPath = song["url"];
-        if (songPath != null && songPath is String) {
-          final fileName = songPath.split("/").last;
-          final newFilePath = "$supportDirPath/Music/$fileName";
-          song["url"] = newFilePath;
-          song['streamInfo'][1]['url'] = newFilePath;
-          await newSongBox.put(song["videoId"], song);
+    } finally {
+      if (prepared != null) {
+        try {
+          await prepared.dispose();
+        } catch (e) {
+          printERROR('Error clearing prepared backup: $e');
         }
       }
+      processingFiles.value = false;
+      restoreRunning.value = false;
     }
-
-    restoreRunning.value = false;
   }
 }
