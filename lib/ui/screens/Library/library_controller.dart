@@ -71,12 +71,14 @@ class LibrarySongsController extends GetxController {
         .whereType<MediaItem>()
         .toList();
 
-    librarySongsList.addAll(
-      Hive.box("SongDownloads").values
-          .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
-          .whereType<MediaItem>()
-          .toList(),
-    );
+    if (!GetPlatform.isWeb) {
+      librarySongsList.addAll(
+        Hive.box("SongDownloads").values
+            .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
+            .whereType<MediaItem>()
+            .toList(),
+      );
+    }
     isSongFetched.value = true;
 
     //Remove deleted songs and expired songUrl from database
@@ -225,7 +227,7 @@ class LibraryPlaylistsController extends GetxController
 
   final playlistCreationMode = "local".obs;
   final librarySortController = SortWidgetController();
-  static final initPlst = [
+  static List<Playlist> get initPlst => [
     Playlist(
       title: "recentlyPlayed".tr,
       playlistId: "LIBRP",
@@ -238,18 +240,20 @@ class LibraryPlaylistsController extends GetxController
       thumbnailUrl: Playlist.thumbPlaceholderUrl,
       isCloudPlaylist: false,
     ),
-    Playlist(
-      title: "cachedOrOffline".tr,
-      playlistId: "SongsCache",
-      thumbnailUrl: Playlist.thumbPlaceholderUrl,
-      isCloudPlaylist: false,
-    ),
-    Playlist(
-      title: "downloads".tr,
-      playlistId: "SongDownloads",
-      thumbnailUrl: Playlist.thumbPlaceholderUrl,
-      isCloudPlaylist: false,
-    ),
+    if (!GetPlatform.isWeb) ...[
+      Playlist(
+        title: "cachedOrOffline".tr,
+        playlistId: "SongsCache",
+        thumbnailUrl: Playlist.thumbPlaceholderUrl,
+        isCloudPlaylist: false,
+      ),
+      Playlist(
+        title: "downloads".tr,
+        playlistId: "SongDownloads",
+        thumbnailUrl: Playlist.thumbPlaceholderUrl,
+        isCloudPlaylist: false,
+      ),
+    ],
   ];
   late RxList<Playlist> libraryPlaylists = RxList([...initPlst]);
   List<Playlist> _allPlaylists = [...initPlst];

@@ -28,9 +28,13 @@ class _SongsLibraryWidgetState extends State<SongsLibraryWidget>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    if (!Get.isRegistered<LocalSongsController>()) {
-      Get.lazyPut<LocalSongsController>(() => LocalSongsController());
+    if (!GetPlatform.isWeb) {
+      _tabController = TabController(length: 2, vsync: this);
+      if (!Get.isRegistered<LocalSongsController>()) {
+        Get.lazyPut<LocalSongsController>(() => LocalSongsController());
+      }
+    } else {
+      _tabController = TabController(length: 1, vsync: this);
     }
   }
 
@@ -45,6 +49,34 @@ class _SongsLibraryWidgetState extends State<SongsLibraryWidget>
     final topPadding = widget.isBottomNavActive
         ? 10.0
         : (context.isLandscape ? 50.0 : 85.0);
+
+    if (GetPlatform.isWeb) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: widget.isBottomNavActive ? 15.0 : 5.0,
+          right: 10.0,
+          top: topPadding,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!widget.isBottomNavActive) ...[
+              Padding(
+                padding:
+                    const EdgeInsets.only(left: 4.0, right: 10.0, bottom: 8.0),
+                child: Text(
+                  "libSongs".tr,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+            ],
+            Expanded(
+              child: _buildHarmonySongsTab(context),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: EdgeInsets.only(
@@ -251,7 +283,7 @@ class PlaylistNAlbumLibraryWidget extends StatelessWidget {
                     onSearch: librplstCntrller.onSearch,
                     onSearchClose: librplstCntrller.onSearchClose,
                     onSearchStart: librplstCntrller.onSearchStart,
-                    isImportFeatureRequired: true,
+                    isImportFeatureRequired: !GetPlatform.isWeb,
                   ),
           ),
           Expanded(

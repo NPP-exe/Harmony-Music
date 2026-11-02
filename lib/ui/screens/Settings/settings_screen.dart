@@ -400,7 +400,7 @@ class SettingsScreen extends StatelessWidget {
                               onChanged: settingsController
                                   .toggleLoudnessNormalization),
                         )),
-                  if (!isDesktop)
+                  if (!isDesktop && !GetPlatform.isWeb)
                     ListTile(
                         contentPadding:
                             const EdgeInsets.only(left: 5, right: 10),
@@ -413,7 +413,7 @@ class SettingsScreen extends StatelessWidget {
                               onChanged:
                                   settingsController.toggleCachingSongsValue),
                         )),
-                  if (!isDesktop)
+                  if (!isDesktop && !GetPlatform.isWeb)
                     ListTile(
                         contentPadding:
                             const EdgeInsets.only(left: 5, right: 10),
@@ -474,7 +474,7 @@ class SettingsScreen extends StatelessWidget {
                           onChanged: settingsController.toggleAutoOpenPlayer),
                     ),
                   ),
-                  if (!isDesktop)
+                  if (GetPlatform.isAndroid)
                     ListTile(
                       contentPadding:
                           const EdgeInsets.only(left: 5, right: 10, top: 0),
@@ -489,7 +489,7 @@ class SettingsScreen extends StatelessWidget {
                         }
                       },
                     ),
-                  if (!isDesktop)
+                  if (GetPlatform.isAndroid)
                     ListTile(
                       contentPadding: const EdgeInsets.only(left: 5, right: 10),
                       title: Text("stopMusicOnTaskClear".tr),
@@ -536,9 +536,10 @@ class SettingsScreen extends StatelessWidget {
                       : const SizedBox.shrink(),
                 ],
               ),
-              CustomExpansionTile(
-                title: "download".tr,
-                icon: Icons.download,
+              if (!GetPlatform.isWeb)
+                CustomExpansionTile(
+                  title: "download".tr,
+                  icon: Icons.download,
                 children: [
                   ListTile(
                     contentPadding: const EdgeInsets.only(left: 5, right: 10),
@@ -629,8 +630,9 @@ class SettingsScreen extends StatelessWidget {
                     ),
                 ],
               ),
-              CustomExpansionTile(
-                  title: "${"backup".tr} & ${"restore".tr}",
+              if (!GetPlatform.isWeb)
+                CustomExpansionTile(
+                    title: "${"backup".tr} & ${"restore".tr}",
                   icon: Icons.restore,
                   children: [
                     ListTile(

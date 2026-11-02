@@ -1,118 +1,177 @@
 <div align="center">
 
-# ✅**This repository is now actively maintained by @NPP-exe :)**
+<img src="https://raw.githubusercontent.com/NPP-exe/Harmony-Music/main/assets/images/header.png" onerror="this.src='https://github.com/anandnet/Harmony-Music/blob/main/cover.png'" width="100%" alt="Harmony Music Cover" />
+
+# 🎵 Harmony Music
+
+**A modern, cross-platform, ad-free music streaming & local audio player built with Flutter.**
+
+[![Latest Release](https://img.shields.io/github/v/release/NPP-exe/Harmony-Music?style=for-the-badge&color=00E5FF&label=Release)](https://github.com/NPP-exe/Harmony-Music/releases/latest)
+[![Web App](https://img.shields.io/badge/Web_App-Live_Demo-06B6D4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://npp-exe.github.io/Harmony-Music/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](LICENSE)
+[![Translation Status](https://hosted.weblate.org/widget/harmony-music/project-translations/multi-auto.svg)](https://hosted.weblate.org/engage/harmony-music/)
+
+---
+
+### 🌟 Actively Maintained by [@NPP-exe](https://github.com/NPP-exe)
+*Originally created by [@anandnet](https://github.com/anandnet) and enriched by community contributors.*
+
+[**Explore Releases**](https://github.com/NPP-exe/Harmony-Music/releases/latest) • [**Web Version**](https://npp-exe.github.io/Harmony-Music/) • [**Report Bug**](https://github.com/NPP-exe/Harmony-Music/issues) • [**Translate**](https://hosted.weblate.org/projects/harmony-music/project-translations/)
+
+---
 
 </div>
 
-<img src="https://github.com/anandnet/Harmony-Music/blob/main/cover.png" width="1200" >
+## 📖 Overview
 
-# Harmony Music
-A cross platform app for music streaming made with Flutter(Android, Windows, linux).
+**Harmony Music** is an elegant, full-featured music player offering seamless online streaming from YouTube Music, Piped, and Invidious backends alongside local music playback with embedded pure Dart metadata extraction. 
 
-# Features
-* Ability to play song from Ytube/Ytube Music.
-* Song cache while playing
-* Radio feature support
-* Background music
-* Playlist creation & bookmark support
-* Artist & Album bookmark support
-* Import song,Playlist,Album,Artist via sharing from Ytube/Ytube Music.
-* Streaming quality control
-* Song downloading support
-* Language support
-* Skip silence
-* Dynamic Theme
-* Flexibility to switch between Bottom & Side Nav bar
-* Equalizer support
-* Android Auto support
-* Synced & Plain Lyrics support
-* Sleep Timer
-* No Advertisment
-* No Login required
-* Piped playlist integration
+Designed with an ambient neon glassmorphism UI, it gives you a clean listening experience with **zero advertisements**, **zero telemetry**, and **no mandatory account login**.
 
+---
 
-# Download
-* This fork provides updated (fixed) Android APKs and Windows executables. Choose the appropriate asset for your platform.
+## ✨ Features
 
-<a href="https://github.com/NPP-exe/Harmony-Music/releases/latest"><img src ="https://github.com/anandnet/Harmony-Music/blob/main/don_github.png" width = "250"></a> </a> 
+### 🎧 Online Streaming & Endless Discovery
+* **YouTube Music & Piped Integration**: Stream millions of songs, albums, and playlists seamlessly.
+* **Smart Infinite Radio**: Generate continuous, personalized radio streams from any song or artist.
+* **Curated Discovery**: Quick Picks, Trending Charts, and Top Music Videos tailored to your listening habits.
+* **Background Playback**: Smooth, uninterrupted background audio with system notification controls and media keys.
+* **Custom Streaming Quality**: Switch between High and Low quality to conserve bandwidth or maximize audio clarity.
 
-# Nix (Linux amd64)
+### 💾 Local Audio & Offline Music
+* **Pure Dart Metadata Extraction**: Reads embedded ID3v2, MP4, FLAC, and Vorbis tags without native library dependencies.
+* **Multi-Folder Library Scan**: Recursively scan and organize audio files from multiple custom directories.
+* **Batch Multi-Select Removal**: Select and remove multiple local tracks at once with an intuitive selection mode.
+* **Online Fallback for Local Tracks**: Start instant radio or retrieve extended artist/album info directly from your local songs.
+* **Supported Formats**: `.mp3`, `.m4a`, `.flac`, `.wav`, `.ogg`, `.opus`, `.aac`, and `.wma`.
 
-With Nix and flakes enabled, build or run the pinned stable release:
+### 🗂️ Advanced Playlist Management & Smart Sorting
+* **Order Added Sorting**: Maintain the exact order in which tracks were added using index keys.
+* **Multi-Criteria Sorting**: Sort by Title, Artist, Album, Duration, or Custom Drag-and-Drop Position.
+* **Per-Playlist Preference Memory**: Each playlist remembers its unique sort mode independently.
+* **Export & Import**: Backup or share playlists easily in **JSON** or **CSV** formats.
+* **Piped Sync & Blacklist**: Synchronize your cloud playlists bidirectionally or blacklist specific lists.
+
+### 📝 Synchronized & Plain Lyrics
+* **Real-time Karaoke Lyrics**: Powered by [LRCLIB](https://lrclib.net) with millisecond-accurate synchronized highlighting.
+* **Offline Caching**: Lyrics are cached automatically for instant offline access.
+* **Manual Search Fallback**: Search and align lyrics manually if a song tag differs.
+
+### 🎨 Ambient Neon Glassmorphism UI
+* **Frosted Glass Cards**: Built with 22px Gaussian backdrop blur, luminous border highlights, and specular reflections.
+* **Dynamic Artwork Theming**: Accent colors adapt in real-time to the currently playing song artwork.
+* **Custom Typography**: Stylized branding featuring Slicey Heallow, Bastliga One, and Rafika typefaces.
+* **Responsive Layout**: Adapts dynamically across platforms—responsive Side Navigation Rail on desktop/tablets and smooth Bottom Navigation on mobile.
+
+### 🛡️ Transactional Backup & Data Safety
+* **Two-Phase Journal Engine**: Settings and playlist backups execute with rollback protection to prevent corruption.
+* **Zero Account Lock-in**: Full portability—export and restore your entire library whenever you wish.
+
+### 🎛️ Audio Engine & Power Controls
+* **Dual Audio Architecture**: High-fidelity `just_audio` on mobile/web and robust `media_kit` (mpv-backed) on Windows and Linux.
+* **Sleep Timer**: Set automatic stop timers before going to bed.
+* **Silence Skipping & Loudness Normalization**: Smooth transitions between varied audio mastering levels.
+* **Car & Desktop Integration**: Supports Android Auto on mobile and MPRIS media control on Linux.
+
+---
+
+## 🚀 Platforms & Installation
+
+Harmony Music is built to run everywhere with dedicated optimizations for each target platform:
+
+| Platform | Format / Source | Installation / Status |
+| :--- | :--- | :--- |
+| **Android** | `.apk` (Universal, arm64-v8a, armeabi-v7a, x86_64) | [Download from Latest Releases](https://github.com/NPP-exe/Harmony-Music/releases/latest) |
+| **Windows** | `.exe` (Installer & Portable) | [Download from Latest Releases](https://github.com/NPP-exe/Harmony-Music/releases/latest) |
+| **Linux** | `.deb`, `.rpm`, Binary | [Download from Latest Releases](https://github.com/NPP-exe/Harmony-Music/releases/latest) |
+| **Nix / NixOS** | Flake Package & Dev Shell | `nix run github:NPP-exe/Harmony-Music` |
+| **Web** | Online & Local Offline Bundle | [Launch Live Web App](https://npp-exe.github.io/Harmony-Music/) |
+| **macOS / iOS** | Native App Bundles | Build via Flutter toolchain |
+
+### ❄️ Nix (Linux x86_64)
+Run or package Harmony Music with Nix flakes enabled:
 
 ```sh
-nix build
-nix run
-```
+# Run the pinned stable release
+nix run github:NPP-exe/Harmony-Music
 
-The default package follows the stable release recorded in `nix/release.json`.
-Application commits on `main` do not change its source. The `audiotags` native
-library is compiled from Rust source.
+# Build the package locally
+nix build github:NPP-exe/Harmony-Music
 
-For local development:
-
-```sh
-nix develop
+# Launch development shell
+nix develop github:NPP-exe/Harmony-Music
 flutter run
 ```
+*For NixOS and Home Manager modules, refer to [nix/README.md](nix/README.md).*
 
-Use `nix build .#development` to package the current checkout, or
-`nix flake check` to build both variants and check lockfile consistency.
-See [Nix development and release maintenance](nix/README.md) for dependencies,
-release updates, and NixOS/Home Manager examples.
+### 🌐 Web & Local Web Bundle
+* **Live Web App**: Visit [https://npp-exe.github.io/Harmony-Music/](https://npp-exe.github.io/Harmony-Music/) directly in your browser.
+* **Offline Local Web Bundle**: Download `harmonymusic-web-local.zip` from workflow artifacts or releases. Run `run-local.bat` (Windows) or `sh run-local.sh` (macOS/Linux) to start a lightweight zero-dependency local server at `http://127.0.0.1:8000`.
 
-# Translation
-<a href="https://hosted.weblate.org/engage/harmony-music/">
-<img src="https://hosted.weblate.org/widget/harmony-music/project-translations/multi-auto.svg" alt="Translation status" />
-</a>
+---
 
-You can also help us in translation, click status image or <a href="https://hosted.weblate.org/projects/harmony-music/project-translations/"> here </a> to go to Weblate.
+## 🌐 Translations
 
-# Troubleshoot
-* if you are facing Notification control issue or music playback stopped by system optimization, please enable ignore battery optimization option from settings
+Harmony Music supports multiple languages thanks to contributors worldwide.
 
-# License
-```
-Harmony Music is a free software licensed under GPL v3.0 with following condition.
+<div align="center">
 
-- Copied/Modified version of this software can not be used for 'non-free' and profit purposes.
-- You can not publish copied/modified version of this app on closed source app repository
-  like PlayStore/AppStore.
+[![Weblate Translation](https://hosted.weblate.org/widget/harmony-music/project-translations/multi-auto.svg)](https://hosted.weblate.org/engage/harmony-music/)
 
-```
+Help translate Harmony Music into your language on [Weblate](https://hosted.weblate.org/projects/harmony-music/project-translations/)!
 
+</div>
 
-# Disclaimer
-```
-This project has been created while learning & learning is the main intention.
-This project is not sponsored or affiliated with, funded, authorized, endorsed by any content provider.
-Any Song, content, trademark used in this app are intellectual property of their respective owners.
-Harmony music is not responsible for any infringement of copyright or other intellectual property rights that may result
-from the use of the songs and other content available through this app.
+---
 
-This Software is released "as-is", without any warranty, responsibility or liability.
-In no event shall the Author of this Software be liable for any special, consequential,
-incidental or indirect damages whatsoever (including, without limitation, any 
-other pecuniary loss) arising out of the use of inability to use this product, even if
-Author of this Sotware is aware of the possibility of such damages and known defect.
-```
+## 🛠️ Troubleshooting
 
-# Learning References & Credits
-<a href = 'https://docs.flutter.dev/'>Flutter documentation</a> - a best guide to learn cross platform Ui/app developemnt<br/>
-<a href = 'https://suragch.medium.com/'>Suragch</a>'s Article related to Just audio & state management,architectural style<br/>
-<a href = 'https://github.com/sigma67'>sigma67</a>'s unofficial ytmusic api project<br/>
-App UI inspired by <a href = 'https://github.com/vfsfitvnm'>vfsfitvnm</a>'s ViMusic<br/>
-Synced lyrics provided by <a href = 'https://lrclib.net' >LRCLIB</a> <br/>
-<a href = 'https://piped.video' >Piped</a> for playlists.
+* **Playback stops when screen turns off (Android)**: 
+  Disable battery optimizations for Harmony Music in `Settings -> Miscellaneous -> Ignore Battery Optimization` or in your Android device settings.
+* **Notification Controls Missing (Android 13+)**:
+  Ensure notification permissions are granted in device settings.
+* **Windows Audio Output**:
+  If audio does not initialize, ensure the latest Visual C++ Redistributable is installed on your Windows machine.
 
-#### Major Packages used
-* just_audio: ^0.9.40  -  audio player for android
-* media_kit: ^1.1.9 - audio player for linux and windows
-* audio_service: ^0.18.15 - manage background music & platform audio services
-* get: ^4.6.6 -  package for high-performance state management, intelligent dependency injection, and route management
-* youtube_explode_dart: ^2.0.2 - Third party package to provide song url
-* hive: ^2.2.3 - offline db used 
-* hive_flutter: ^1.1.0
+---
 
+## 🤝 Maintainers & Credits
 
+### Maintainer & Lead
+* **[@NPP-exe](https://github.com/NPP-exe)** — Project maintainer, feature development, UI/UX refactoring, and release management.
+
+### Original Creator
+* **[@anandnet](https://github.com/anandnet)** — Original creator of Harmony Music.
+
+### Community Contributors
+Special thanks to everyone contributing code, bug reports, and maintenance improvements:
+* **[@BandhanPramanik](https://github.com/BandhanPramanik)**
+* **[@Meralchen](https://github.com/Meralchen)**
+* **[@theblackcoderbr](https://github.com/theblackcoderbr)**
+* **[@jaxenisr](https://github.com/jaxenisr)**
+* ...and all of our beta testers and Weblate translators!
+
+### Key Open-Source Libraries
+* [just_audio](https://pub.dev/packages/just_audio) & [media_kit](https://pub.dev/packages/media_kit) — Audio engines
+* [audio_service](https://pub.dev/packages/audio_service) — Background audio lifecycle
+* [GetX](https://pub.dev/packages/get) — State and dependency management
+* [Hive](https://pub.dev/packages/hive) — Fast, lightweight local database
+* [LRCLIB](https://lrclib.net) — Synchronized lyrics provider
+* [youtube_explode_dart](https://pub.dev/packages/youtube_explode_dart) — Stream resolving
+
+---
+
+## 📄 License
+
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+* Copies and modifications cannot be used for non-free or commercial purposes.
+* Modified or copied versions may not be distributed on closed-source app stores (Play Store, App Store).
+
+See the [LICENSE](LICENSE) file for the complete terms.
+
+---
+
+## ⚠️ Disclaimer
+
+This project is created for educational and learning purposes. It is not affiliated with, sponsored by, or endorsed by Google, YouTube, or any content providers. All songs, artwork, and trademarks are the intellectual property of their respective owners. Harmony Music is distributed "as-is" without warranty of any kind.

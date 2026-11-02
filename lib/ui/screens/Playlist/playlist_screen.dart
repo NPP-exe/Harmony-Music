@@ -382,7 +382,8 @@ class PlaylistScreen extends StatelessWidget {
                                                     .color,
                                               )),
                                           // Download button
-                                          GetX<Downloader>(builder: (controller) {
+                                          if (!GetPlatform.isWeb)
+                                            GetX<Downloader>(builder: (controller) {
                                             final id = playlistController
                                                 .playlist.value.playlistId;
                                             return IconButton(
@@ -528,7 +529,8 @@ class PlaylistScreen extends StatelessWidget {
                                               ),
                                             ),
                                           // Export button - opens export dialog
-                                          IconButton(
+                                          if (!GetPlatform.isWeb)
+                                            IconButton(
                                             onPressed: () {
                                               showDialog(
                                                 context: context,

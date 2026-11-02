@@ -471,12 +471,32 @@ class MiniPlayer extends StatelessWidget {
                                                     : Icons.timer_outlined),
                                               ),
                                             ),
-                                          const SizedBox(
-                                            width: 10,
-                                          ),
-                                          const SongDownloadButton(
-                                            calledFromPlayer: true,
-                                          ),
+                                          if (!GetPlatform.isWeb)
+                                            Obx(() {
+                                              final curr = playerController
+                                                  .currentSong.value;
+                                              final isLocal = curr
+                                                          ?.extras?['isLocal'] ==
+                                                      true ||
+                                                  (curr != null &&
+                                                      (curr.id.startsWith('/') ||
+                                                          curr.id.contains(
+                                                              ':\\') ||
+                                                          curr.id.contains(
+                                                              ':/')));
+                                              if (isLocal) {
+                                                return const SizedBox.shrink();
+                                              }
+                                              return const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  SizedBox(width: 10),
+                                                  SongDownloadButton(
+                                                    calledFromPlayer: true,
+                                                  ),
+                                                ],
+                                              );
+                                            }),
                                           const SizedBox(
                                             width: 10,
                                           ),

@@ -12,7 +12,7 @@ class CombinedLibrary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!Get.isRegistered<LocalSongsController>()) {
+    if (!GetPlatform.isWeb && !Get.isRegistered<LocalSongsController>()) {
       Get.lazyPut<LocalSongsController>(() => LocalSongsController());
     }
     final tabCon = Get.put(CombinedLibraryController());

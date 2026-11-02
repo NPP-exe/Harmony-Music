@@ -60,7 +60,7 @@ class SongInfoBottomSheet extends StatelessWidget {
               ),
               subtitle: Text(song.artist!),
               trailing: SizedBox(
-                width: isLocalSong ? 50 : 110,
+                width: (isLocalSong || GetPlatform.isWeb) ? 50 : 110,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -90,7 +90,7 @@ class SongInfoBottomSheet extends StatelessWidget {
                                       .titleMedium!
                                       .color,
                                 ))),
-                    if (!isLocalSong)
+                    if (!isLocalSong && !GetPlatform.isWeb)
                       SongDownloadButton(
                         song_: song,
                         isDownloadingDoneCallback:
@@ -222,11 +222,12 @@ class SongInfoBottomSheet extends StatelessWidget {
                       }
                     })
                 : const SizedBox.shrink(),
-            Obx(
-              () => (songInfoController.isDownloaded.isTrue &&
-                      (playlist?.playlistId != "SongDownloads" &&
-                          playlist?.playlistId != "SongsCache"))
-                  ? ListTile(
+            if (!GetPlatform.isWeb)
+              Obx(
+                () => (songInfoController.isDownloaded.isTrue &&
+                        (playlist?.playlistId != "SongDownloads" &&
+                            playlist?.playlistId != "SongsCache"))
+                    ? ListTile(
                       contentPadding: const EdgeInsets.only(left: 15),
                       visualDensity: const VisualDensity(vertical: -1),
                       leading: const Icon(Icons.delete),

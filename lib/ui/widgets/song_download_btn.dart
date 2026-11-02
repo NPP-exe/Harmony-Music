@@ -19,12 +19,20 @@ class SongDownloadButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (GetPlatform.isWeb) return const SizedBox.shrink();
     final downloader = Get.find<Downloader>();
     final playerController = Get.find<PlayerController>();
     return Obx(() {
       final song =
           calledFromPlayer ? playerController.currentSong.value : song_;
       if (song == null && calledFromPlayer) return const SizedBox.shrink();
+      if (song != null) {
+        final isLocal = song.extras?['isLocal'] == true ||
+            song.id.startsWith('/') ||
+            song.id.contains(':\\') ||
+            song.id.contains(':/');
+        if (isLocal) return const SizedBox.shrink();
+      }
       final isDownloadingDone = (downloader.songQueue.contains(song) &&
           downloader.currentSong == song &&
           downloader.songDownloadingProgress.value == 100);
