@@ -29,7 +29,7 @@
 
 <p align="center">
   <a href="https://github.com/NPP-exe">
-    <img src="assets/images/branding_maintained_pill.png" alt="Maintained by NPP" height="92" width="auto" />
+    <img src="assets/images/branding_maintained_pill.png" alt="Maintained by NPP" height="120" width="auto" />
   </a>
 </p>
 
