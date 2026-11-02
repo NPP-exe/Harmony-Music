@@ -378,6 +378,69 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     queue.add(newQueue);
   }
 
+  Future<bool> _setAudioSourceWeb(
+    MediaItem mediaItem,
+    HMStreamingData streamInfo,
+  ) async {
+    final candidateAudios = <Audio>[
+      if (streamInfo.audio != null) streamInfo.audio!,
+      if (streamInfo.lowQualityAudio != null &&
+          streamInfo.lowQualityAudio != streamInfo.audio)
+        streamInfo.lowQualityAudio!,
+      if (streamInfo.highQualityAudio != null &&
+          streamInfo.highQualityAudio != streamInfo.audio)
+        streamInfo.highQualityAudio!,
+      if (streamInfo.allAudioFormats != null)
+        ...streamInfo.allAudioFormats!.where(
+          (a) =>
+              a != streamInfo.audio &&
+              a != streamInfo.lowQualityAudio &&
+              a != streamInfo.highQualityAudio,
+        ),
+    ];
+
+    Object? lastError;
+    for (final candidate in candidateAudios) {
+      final url = candidate.url;
+      if (url.isEmpty || isExpired(url: url)) {
+        continue;
+      }
+      try {
+        final extras = Map<String, dynamic>.from(mediaItem.extras ?? const {});
+        extras['url'] = url;
+        final updatedMediaItem = mediaItem.copyWith(extras: extras);
+        currentSongUrl = url;
+        this.mediaItem.add(updatedMediaItem);
+        final audioSource = AudioSource.uri(Uri.parse(url), tag: updatedMediaItem);
+        await _player.setAudioSource(audioSource);
+        return true;
+      } catch (e) {
+        lastError = e;
+        printERROR('[Web playback] Failed to load candidate audio (${candidate.itag}): $e');
+      }
+    }
+
+    printERROR('[Web playback] All candidate audio streams failed to load: $lastError');
+    isSongLoading = false;
+    currentSongUrl = null;
+    playbackState.add(
+      playbackState.value.copyWith(
+        processingState: AudioProcessingState.error,
+        errorCode: 404,
+        errorMessage: 'Playback error: Unable to load audio stream',
+      ),
+    );
+    if (Get.isRegistered<PlayerController>()) {
+      Get.find<PlayerController>().notifyPlayError(
+        'Playback error: Could not stream this song in your browser. Please try another track.',
+      );
+    }
+    try {
+      await _player.stop();
+    } catch (_) {}
+    return false;
+  }
+
   AudioSource _createAudioSource(MediaItem mediaItem) {
     final url = mediaItem.extras!['url'] as String;
     if (!GetPlatform.isWeb &&
@@ -648,7 +711,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           playbackState.value.copyWith(queueIndex: currentIndex),
         );
         if (GetPlatform.isWeb) {
-          await _player.setAudioSource(_createAudioSource(currentSong));
+          final loaded = await _setAudioSourceWeb(currentSong, streamInfo);
+          if (!loaded) return;
         } else {
           await _playList.add(_createAudioSource(currentSong));
         }
@@ -751,7 +815,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         currentSongUrl = currMed.extras!['url'] = streamInfo.audio!.url;
 
         if (GetPlatform.isWeb) {
-          await _player.setAudioSource(_createAudioSource(currMed));
+          final loaded = await _setAudioSourceWeb(currMed, streamInfo);
+          if (!loaded) return;
         } else {
           await _playList.add(_createAudioSource(currMed));
         }

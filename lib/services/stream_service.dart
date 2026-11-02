@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import 'invidious_service.dart';
+import 'utils.dart';
 
 class StreamProvider {
   final bool playable;
@@ -85,44 +86,73 @@ class StreamProvider {
 
   static Future<StreamProvider> _fetchInvidious(String videoId) async {
     try {
-      final video = await Get.find<InvidiousService>().video(
-        videoId,
-        local: true,
-      );
+      final invidious = Get.find<InvidiousService>();
+      Map<String, dynamic>? video;
+
+      try {
+        video = await invidious.video(videoId, local: true);
+      } catch (e) {
+        try {
+          video = await invidious.video(videoId, local: false);
+        } catch (_) {}
+      }
+
+      if (video == null) {
+        return StreamProvider(
+          playable: false,
+          statusMSG: "Invidious could not retrieve stream metadata",
+        );
+      }
+
       final durationMs =
           ((int.tryParse(video['lengthSeconds']?.toString() ?? '') ?? 0) *
                   1000)
               .toInt();
-      final formats = (video['adaptiveFormats'] as List? ?? const [])
-          .whereType<Map>()
-          .where(
-            (format) =>
-                (format['type'] as String? ?? '').startsWith('audio/'),
-          )
-          .map((format) {
-            final itag = int.tryParse(format['itag']?.toString() ?? '');
-            final url = format['url'] as String?;
-            if (itag == null || url == null || url.isEmpty) return null;
 
-            final codecDescription =
-                '${format['encoding'] ?? ''} ${format['type'] ?? ''}'
-                    .toLowerCase();
-            return Audio(
-              itag: itag,
-              audioCodec: codecDescription.contains('aac') ||
-                      codecDescription.contains('mp4a')
-                  ? Codec.mp4a
-                  : Codec.opus,
-              bitrate: int.tryParse(format['bitrate']?.toString() ?? '') ?? 0,
-              duration: durationMs,
-              loudnessDb:
-                  double.tryParse(video['loudness']?.toString() ?? '') ?? 0,
-              url: url,
-              size: int.tryParse(format['size']?.toString() ?? '') ?? 0,
-            );
-          })
-          .whereType<Audio>()
-          .toList();
+      List<Audio> parseFormats(List? rawFormats) {
+        return (rawFormats ?? const [])
+            .whereType<Map>()
+            .where(
+              (format) =>
+                  (format['type'] as String? ?? '').startsWith('audio/'),
+            )
+            .map((format) {
+              final itag = int.tryParse(format['itag']?.toString() ?? '');
+              final url = format['url'] as String?;
+              if (itag == null || url == null || url.isEmpty) return null;
+
+              if (isExpired(url: url)) return null;
+
+              final codecDescription =
+                  '${format['encoding'] ?? ''} ${format['type'] ?? ''}'
+                      .toLowerCase();
+              return Audio(
+                itag: itag,
+                audioCodec: codecDescription.contains('aac') ||
+                        codecDescription.contains('mp4a')
+                    ? Codec.mp4a
+                    : Codec.opus,
+                bitrate: int.tryParse(format['bitrate']?.toString() ?? '') ?? 0,
+                duration: durationMs,
+                loudnessDb:
+                    double.tryParse(video!['loudness']?.toString() ?? '') ?? 0,
+                url: url,
+                size: int.tryParse(format['size']?.toString() ?? '') ?? 0,
+              );
+            })
+            .whereType<Audio>()
+            .toList();
+      }
+
+      var formats = parseFormats(video['adaptiveFormats'] as List?);
+
+      // If local: true formats were empty or all expired, attempt local: false
+      if (formats.isEmpty) {
+        try {
+          final directVideo = await invidious.video(videoId, local: false);
+          formats = parseFormats(directVideo['adaptiveFormats'] as List?);
+        } catch (_) {}
+      }
 
       if (formats.isEmpty) {
         return StreamProvider(
@@ -187,6 +217,7 @@ class StreamProvider {
       "statusMSG": statusMSG,
       "lowQualityAudio": lowQualityAudio?.toJson(),
       "highQualityAudio": highestQualityAudio?.toJson(),
+      "allAudioFormats": audioFormats?.map((e) => e.toJson()).toList(),
     };
   }
 }

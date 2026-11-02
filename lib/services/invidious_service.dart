@@ -36,23 +36,34 @@ class InvidiousService extends GetxService {
     Object? lastError;
 
     for (final instance in instances) {
-      try {
-        final response = await _dio.get<dynamic>(
-          '$instance/api/v1/$endpoint',
-          queryParameters: queryParameters,
-        );
-        final data = response.data is String
-            ? jsonDecode(response.data as String)
-            : response.data;
-        if (data is! List && data is! Map) {
-          throw const FormatException('Unexpected Invidious API response');
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          final response = await _dio.get<dynamic>(
+            '$instance/api/v1/$endpoint',
+            queryParameters: queryParameters,
+          );
+          final data = response.data is String
+              ? jsonDecode(response.data as String)
+              : response.data;
+          if (data is! List && data is! Map) {
+            throw const FormatException('Unexpected Invidious API response');
+          }
+          _activeInstance = instance;
+          return _resolveRelativeMediaUrls(data, Uri.parse(instance));
+        } on DioException catch (error) {
+          lastError = error;
+          if (attempt == 0 &&
+              (error.response?.statusCode == 500 ||
+                  error.type == DioExceptionType.connectionTimeout ||
+                  error.type == DioExceptionType.receiveTimeout)) {
+            await Future.delayed(const Duration(milliseconds: 600));
+            continue;
+          }
+          break;
+        } on FormatException catch (error) {
+          lastError = error;
+          break;
         }
-        _activeInstance = instance;
-        return _resolveRelativeMediaUrls(data, Uri.parse(instance));
-      } on DioException catch (error) {
-        lastError = error;
-      } on FormatException catch (error) {
-        lastError = error;
       }
     }
 

@@ -313,6 +313,7 @@ class PlayerController extends GetxController
   }
 
   Future<void> _restorePrevSession() async {
+    if (GetPlatform.isWeb) return;
     final restrorePrevSessionEnabled =
         Hive.box("AppPrefs").get("restrorePlaybackSession") ?? false;
     if (restrorePrevSessionEnabled) {
