@@ -282,8 +282,9 @@ class AlbumScreen extends StatelessWidget {
                                               )),
 
                                           // Download button
-                                          GetX<Downloader>(
-                                              builder: (controller) {
+                                          if (!GetPlatform.isWeb)
+                                            GetX<Downloader>(
+                                                builder: (controller) {
                                             final id = albumController
                                                 .album.value.browseId;
                                             return IconButton(

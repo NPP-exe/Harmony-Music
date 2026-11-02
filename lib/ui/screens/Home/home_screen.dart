@@ -32,7 +32,8 @@ class HomeScreen extends StatelessWidget {
         floatingActionButton: Obx(
           () => ((homeScreenController.tabIndex.value == 0 &&
                           !GetPlatform.isDesktop) ||
-                      homeScreenController.tabIndex.value == 2) &&
+                      homeScreenController.tabIndex.value ==
+                          (GetPlatform.isWeb ? 1 : 2)) &&
                   settingsScreenController.isBottomNavBarEnabled.isFalse
               ? Obx(
                   () => Padding(
@@ -53,7 +54,8 @@ class HomeScreen extends StatelessWidget {
                                     BorderRadius.all(Radius.circular(14))),
                             elevation: 0,
                             onPressed: () async {
-                              if (homeScreenController.tabIndex.value == 2) {
+                              if (homeScreenController.tabIndex.value ==
+                                  (GetPlatform.isWeb ? 1 : 2)) {
                                 showDialog(
                                     context: context,
                                     builder: (context) =>
@@ -65,7 +67,8 @@ class HomeScreen extends StatelessWidget {
                               // file:///data/user/0/com.example.harmonymusic/cache/libCachedImageData/
                               //file:///data/user/0/com.example.harmonymusic/cache/just_audio_cache/
                             },
-                            child: Icon(homeScreenController.tabIndex.value == 2
+                            child: Icon(homeScreenController.tabIndex.value ==
+                                    (GetPlatform.isWeb ? 1 : 2)
                                 ? Icons.add
                                 : Icons.search)),
                       ),
@@ -274,17 +277,25 @@ class Body extends StatelessWidget {
     } else if (homeScreenController.tabIndex.value == 1) {
       return settingsScreenController.isBottomNavBarEnabled.isTrue
           ? const SearchScreen()
-          : const SongsLibraryWidget();
+          : (GetPlatform.isWeb
+              ? const PlaylistNAlbumLibraryWidget(isAlbumContent: false)
+              : const SongsLibraryWidget());
     } else if (homeScreenController.tabIndex.value == 2) {
       return settingsScreenController.isBottomNavBarEnabled.isTrue
           ? const CombinedLibrary()
-          : const PlaylistNAlbumLibraryWidget(isAlbumContent: false);
+          : (GetPlatform.isWeb
+              ? const PlaylistNAlbumLibraryWidget()
+              : const PlaylistNAlbumLibraryWidget(isAlbumContent: false));
     } else if (homeScreenController.tabIndex.value == 3) {
       return settingsScreenController.isBottomNavBarEnabled.isTrue
           ? const SettingsScreen(isBottomNavActive: true)
-          : const PlaylistNAlbumLibraryWidget();
+          : (GetPlatform.isWeb
+              ? const LibraryArtistWidget()
+              : const PlaylistNAlbumLibraryWidget());
     } else if (homeScreenController.tabIndex.value == 4) {
-      return const LibraryArtistWidget();
+      return GetPlatform.isWeb
+          ? const SettingsScreen()
+          : const LibraryArtistWidget();
     } else if (homeScreenController.tabIndex.value == 5) {
       return const SettingsScreen();
     } else {

@@ -46,37 +46,13 @@ class _SongsLibraryWidgetState extends State<SongsLibraryWidget>
 
   @override
   Widget build(BuildContext context) {
+    if (GetPlatform.isWeb) {
+      return const SizedBox.shrink();
+    }
+
     final topPadding = widget.isBottomNavActive
         ? 10.0
         : (context.isLandscape ? 50.0 : 85.0);
-
-    if (GetPlatform.isWeb) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: widget.isBottomNavActive ? 15.0 : 5.0,
-          right: 10.0,
-          top: topPadding,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!widget.isBottomNavActive) ...[
-              Padding(
-                padding:
-                    const EdgeInsets.only(left: 4.0, right: 10.0, bottom: 8.0),
-                child: Text(
-                  "libSongs".tr,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-            ],
-            Expanded(
-              child: _buildHarmonySongsTab(context),
-            ),
-          ],
-        ),
-      );
-    }
 
     return Padding(
       padding: EdgeInsets.only(

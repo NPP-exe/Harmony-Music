@@ -59,7 +59,7 @@ class CombinedLibrary extends StatelessWidget {
           splashFactory: NoSplash.splashFactory,
           controller: tabCon.tabController,
           tabs: [
-            Tab(text: "songs".tr),
+            if (!GetPlatform.isWeb) Tab(text: "songs".tr),
             Tab(text: "playlists".tr),
             Tab(text: "albums".tr),
             Tab(text: "artists".tr),
@@ -73,14 +73,15 @@ class CombinedLibrary extends StatelessWidget {
       ),
       body: TabBarView(
         controller: tabCon.tabController,
-        children: const [
-          SongsLibraryWidget(
-            isBottomNavActive: true,
-          ),
-          PlaylistNAlbumLibraryWidget(
+        children: [
+          if (!GetPlatform.isWeb)
+            const SongsLibraryWidget(
+              isBottomNavActive: true,
+            ),
+          const PlaylistNAlbumLibraryWidget(
               isAlbumContent: false, isBottomNavActive: true),
-          PlaylistNAlbumLibraryWidget(isBottomNavActive: true),
-          LibraryArtistWidget(isBottomNavActive: true),
+          const PlaylistNAlbumLibraryWidget(isBottomNavActive: true),
+          const LibraryArtistWidget(isBottomNavActive: true),
         ],
       ),
     );
@@ -94,7 +95,8 @@ class CombinedLibraryController extends GetxController
   @override
   void onInit() {
     super.onInit();
-    tabController = TabController(vsync: this, length: 4);
+    tabController = TabController(
+        vsync: this, length: GetPlatform.isWeb ? 3 : 4);
   }
 
   @override
