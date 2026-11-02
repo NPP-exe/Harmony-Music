@@ -7,6 +7,8 @@ name: Deploy Web
     types:
       - completed
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
@@ -49,7 +51,9 @@ jobs:
       - name: Build Flutter web app
         env:
           BASE_HREF: ${{ steps.pages.outputs.base_href }}
-        run: flutter build web --release --base-href "$BASE_HREF"
+        run: |
+          flutter build web --release --base-href "$BASE_HREF"
+          touch build/web/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3
         with:

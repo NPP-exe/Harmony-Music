@@ -4,11 +4,22 @@
 
 **A modern, cross-platform, ad-free music streaming & audio player built with Flutter.**
 
+<br />
+
 [![Latest Release](https://img.shields.io/github/v/release/NPP-exe/Harmony-Music?style=for-the-badge&color=00E5FF&label=Release)](https://github.com/NPP-exe/Harmony-Music/releases/latest)
 [![Web App](https://img.shields.io/badge/Web_App-Live_Demo-06B6D4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://npp-exe.github.io/Harmony-Music/)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](https://github.com/NPP-exe/Harmony-Music/blob/main/LICENSE)
 
 <br />
+
+[![Flutter](https://img.shields.io/badge/Flutter_3.29-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
+[![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![C++](https://img.shields.io/badge/C++-00599C?style=for-the-badge&logo=cplusplus&logoColor=white)](https://isocpp.org)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org)
+[![Shell](https://img.shields.io/badge/Shell-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)](https://www.gnu.org/software/bash/)
+
+<br /><br />
 
 <p align="center">
   <img src="assets/images/showcase.png" alt="Harmony Music App Showcase" width="100%" />
@@ -16,26 +27,21 @@
 
 ---
 
-### 🌟 Actively Maintained by [@NPP-exe](https://github.com/NPP-exe)
-*Originally created by [@anandnet](https://github.com/anandnet) • Enriched by community contributors*
+<p align="center">
+  <a href="https://github.com/NPP-exe">
+    <img src="assets/images/branding_maintained_pill.png" alt="Maintained by NPP" height="42" />
+  </a>
+</p>
 
-[**Download Releases**](https://github.com/NPP-exe/Harmony-Music/releases/latest) • [**Launch Web App**](https://npp-exe.github.io/Harmony-Music/) • [**Report an Issue**](https://github.com/NPP-exe/Harmony-Music/issues) • [**Translate on Weblate**](https://hosted.weblate.org/projects/harmony-music/project-translations/)
+<p align="center">
+  <em>Actively maintained by <a href="https://github.com/NPP-exe"><b>@NPP-exe</b></a> • Originally created by <a href="https://github.com/anandnet"><b>@anandnet</b></a></em>
+</p>
+
+[**Download Releases**](https://github.com/NPP-exe/Harmony-Music/releases/latest) • [**Launch Web App**](https://npp-exe.github.io/Harmony-Music/) • [**Report an Issue**](https://github.com/NPP-exe/Harmony-Music/issues) • [**Translate on Weblate**](https://hosted.weblate.org/engage/harmony-music/)
 
 ---
 
 </div>
-
-## 🛠️ Tech Stack & Key Libraries
-
-| Category | Technologies & Libraries |
-| :--- | :--- |
-| **Languages** | ![Dart](https://img.shields.io/badge/Dart-0175C2?style=flat-square&logo=dart&logoColor=white) ![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white) ![C++](https://img.shields.io/badge/C++-00599C?style=flat-square&logo=cplusplus&logoColor=white) ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![Shell](https://img.shields.io/badge/Shell-4EAA25?style=flat-square&logo=gnu-bash&logoColor=white) |
-| **Framework & State** | ![Flutter](https://img.shields.io/badge/Flutter_3.29-02569B?style=flat-square&logo=flutter&logoColor=white) ![GetX](https://img.shields.io/badge/GetX-8A2BE2?style=flat-square) ![Google Fonts](https://img.shields.io/badge/Google_Fonts-4285F4?style=flat-square&logo=google&logoColor=white) |
-| **Audio Core** | `just_audio` (Mobile & Web) • `media_kit` (Desktop / mpv) • `audio_service` (Background Lifecycle & Auto) |
-| **Storage & Data** | `hive` & `hive_flutter` (Lightweight NoSQL Box Store) • Pure Dart ID3v2/MP4/FLAC Parser |
-| **APIs & Services** | `youtube_explode_dart` • `Piped API` • `Invidious API` • `LRCLIB API` (Synchronized Lyrics) |
-
----
 
 ## ✨ Features
 
@@ -93,7 +99,7 @@ flutter run
 
 [![Weblate Translation](https://hosted.weblate.org/widget/harmony-music/project-translations/multi-auto.svg)](https://hosted.weblate.org/engage/harmony-music/)
 
-Help bring Harmony Music to your native language on [Weblate](https://hosted.weblate.org/projects/harmony-music/project-translations/)!
+Help bring Harmony Music to your native language on [Weblate](https://hosted.weblate.org/engage/harmony-music/)!
 
 </div>
 
@@ -126,5 +132,5 @@ Special thanks to our contributors, beta testers, and translators:
 
 ## 📄 License & Disclaimer
 
-* **License**: Free software licensed under the **GNU General Public License v3.0 (GPL-3.0)**. Copies and modifications may not be used for closed-source commercial app stores. See [LICENSE](LICENSE).
+* **License**: Free software licensed under the **GNU General Public License v3.0 (GPL-3.0)**. Copies and modifications may not be used for closed-source commercial app stores. See [LICENSE](https://github.com/NPP-exe/Harmony-Music/blob/main/LICENSE).
 * **Disclaimer**: Harmony Music is created for educational purposes. It is not affiliated with, sponsored by, or endorsed by Google, YouTube, or any music service provider. All songs, audio, and trademarks belong to their respective owners.

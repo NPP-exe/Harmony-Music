@@ -25,7 +25,7 @@ jobs:
       max-parallel: 1
       matrix:
         include:
-          - runner: macos-15
+          - runner: macos-14
             name: ARM64
             arch: arm64
             archs: arm64
@@ -35,7 +35,7 @@ jobs:
             arch: x86_64
             archs: x86_64
             only_active_arch: 'YES'
-          - runner: macos-15
+          - runner: macos-14
             name: Universal
             arch: universal
             archs: 'arm64 x86_64'

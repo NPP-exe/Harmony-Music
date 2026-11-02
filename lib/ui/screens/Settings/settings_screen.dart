@@ -694,47 +694,44 @@ class SettingsScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14.0, vertical: 12.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Image.asset(
-                              'assets/images/bg_harmony.png',
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16.0, vertical: 20.0),
-                            child: Column(
-                              children: [
-                                Align(
-                                  alignment: Alignment.topRight,
-                                  child: TextButton.icon(
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: const Color(0xFF00E5FF),
-                                    ),
-                                    icon: const Icon(
-                                      Icons.fullscreen_rounded,
-                                      size: 18,
-                                    ),
-                                    label: const Text(
-                                      'Fullscreen',
-                                      style: TextStyle(fontSize: 12),
-                                    ),
-                                    onPressed: () => Get.to(
-                                      () => const AppInfoScreen(),
-                                    ),
-                                  ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 20.0),
+                        child: Column(
+                          children: [
+                            Align(
+                              alignment: Alignment.topRight,
+                              child: TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFF00E5FF),
                                 ),
-                                AppInfoContent(
-                                  settingsController: settingsController,
+                                icon: const Icon(
+                                  Icons.fullscreen_rounded,
+                                  size: 18,
                                 ),
-                              ],
+                                label: const Text(
+                                  'Fullscreen',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                                onPressed: () => Get.to(
+                                  () => const AppInfoScreen(),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                            AppInfoContent(
+                              settingsController: settingsController,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

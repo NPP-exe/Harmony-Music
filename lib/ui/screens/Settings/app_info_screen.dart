@@ -57,60 +57,47 @@ class AppInfoScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final settingsController = Get.find<SettingsScreenController>();
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // 1. Root Canvas Background Wallpaper
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/bg_harmony.png',
-              fit: BoxFit.cover,
-            ),
-          ),
-
-          // 2. Safe Area with Scrollable Content
-          SafeArea(
-            child: Column(
-              children: [
-                // Top Navigation Bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0, vertical: 8.0),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        onPressed: () => Get.back(),
-                        tooltip: 'Back',
-                      ),
-                      const Spacer(),
-                    ],
+      backgroundColor: Theme.of(context).canvasColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top Navigation Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Theme.of(context).iconTheme.color ?? Colors.white,
+                      size: 20,
+                    ),
+                    onPressed: () => Get.back(),
+                    tooltip: 'Back',
                   ),
-                ),
+                  const Spacer(),
+                ],
+              ),
+            ),
 
-                // Main Content
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1000),
-                        child: AppInfoContent(
-                          settingsController: settingsController,
-                        ),
-                      ),
+            // Main Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 12),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1000),
+                    child: AppInfoContent(
+                      settingsController: settingsController,
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -464,7 +451,6 @@ class AppInfoContent extends StatelessWidget {
                     child: _buildAvatarCircle(
                       label: "BP",
                       handle: "@BandhanPramanik",
-                      role: "Core Contributor",
                       color: const Color(0xFF38BDF8),
                       url: "https://github.com/BandhanPramanik",
                     ),
@@ -474,7 +460,6 @@ class AppInfoContent extends StatelessWidget {
                     child: _buildAvatarCircle(
                       label: "M",
                       handle: "@Meralchen",
-                      role: "macOS, iOS & Web Support",
                       color: const Color(0xFF34D399),
                       url: "https://github.com/Meralchen",
                     ),
@@ -484,7 +469,6 @@ class AppInfoContent extends StatelessWidget {
                     child: _buildAvatarCircle(
                       label: "TC",
                       handle: "@theblackcoderbr",
-                      role: "Nix Packaging & Flake",
                       color: const Color(0xFFF59E0B),
                       url: "https://github.com/theblackcoderbr",
                     ),
@@ -494,7 +478,6 @@ class AppInfoContent extends StatelessWidget {
                     child: _buildAvatarCircle(
                       label: "J",
                       handle: "@jaxenisr",
-                      role: "First Contributor",
                       color: const Color(0xFFA855F7),
                       url: "https://github.com/jaxenisr",
                     ),
@@ -503,8 +486,7 @@ class AppInfoContent extends StatelessWidget {
                     left: 96,
                     child: _buildAvatarCircle(
                       label: "❤",
-                      handle: "Community",
-                      role: "Translators & Testers",
+                      handle: "Community Contributors",
                       color: const Color(0xFFEC4899),
                       url:
                           "https://github.com/NPP-exe/Harmony-Music/graphs/contributors",
@@ -713,12 +695,11 @@ class AppInfoContent extends StatelessWidget {
   Widget _buildAvatarCircle({
     required String label,
     required String handle,
-    required String role,
     required Color color,
     required String url,
   }) {
     return Tooltip(
-      message: "$handle • $role",
+      message: handle,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => launchUrl(
