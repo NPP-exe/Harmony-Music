@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'package:hive/hive.dart';
 import 'home.dart';
 
 class WebExperimentConsentScreen extends StatefulWidget {
@@ -23,6 +24,7 @@ class _WebExperimentConsentScreenState
     if (!_hasUnderstood || _continuing) return;
 
     setState(() => _continuing = true);
+    Hive.box("AppPrefs").put('webExperimentWarningEnabled', false);
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => const Home()),

@@ -87,84 +87,85 @@ class StreamProvider {
   static Future<StreamProvider> _fetchInvidious(String videoId) async {
     try {
       final invidious = Get.find<InvidiousService>();
-      Map<String, dynamic>? video;
+      final candidateRegions = ['US', 'GB', 'IN', 'DE', ''];
 
-      try {
-        video = await invidious.video(videoId, local: true);
-      } catch (e) {
+      for (final region in candidateRegions) {
         try {
-          video = await invidious.video(videoId, local: false);
-        } catch (_) {}
-      }
+          final video = await invidious.video(
+            videoId,
+            local: true,
+            region: region.isEmpty ? null : region,
+          );
 
-      if (video == null) {
-        return StreamProvider(
-          playable: false,
-          statusMSG: "Invidious could not retrieve stream metadata",
-        );
-      }
+          final durationMs =
+              ((int.tryParse(video['lengthSeconds']?.toString() ?? '') ?? 0) *
+                      1000)
+                  .toInt();
 
-      final durationMs =
-          ((int.tryParse(video['lengthSeconds']?.toString() ?? '') ?? 0) *
-                  1000)
-              .toInt();
+          List<Audio> parseFormats(List? rawFormats) {
+            return (rawFormats ?? const [])
+                .whereType<Map>()
+                .where(
+                  (format) =>
+                      (format['type'] as String? ?? '').startsWith('audio/'),
+                )
+                .map((format) {
+                  final itag = int.tryParse(format['itag']?.toString() ?? '');
+                  final url = format['url'] as String?;
+                  if (itag == null || url == null || url.isEmpty) return null;
 
-      List<Audio> parseFormats(List? rawFormats) {
-        return (rawFormats ?? const [])
-            .whereType<Map>()
-            .where(
-              (format) =>
-                  (format['type'] as String? ?? '').startsWith('audio/'),
-            )
-            .map((format) {
-              final itag = int.tryParse(format['itag']?.toString() ?? '');
-              final url = format['url'] as String?;
-              if (itag == null || url == null || url.isEmpty) return null;
+                  if (isExpired(url: url)) return null;
 
-              if (isExpired(url: url)) return null;
+                  final codecDescription =
+                      '${format['encoding'] ?? ''} ${format['type'] ?? ''}'
+                          .toLowerCase();
+                  return Audio(
+                    itag: itag,
+                    audioCodec: codecDescription.contains('aac') ||
+                            codecDescription.contains('mp4a')
+                        ? Codec.mp4a
+                        : Codec.opus,
+                    bitrate:
+                        int.tryParse(format['bitrate']?.toString() ?? '') ?? 0,
+                    duration: durationMs,
+                    loudnessDb:
+                        double.tryParse(video['loudness']?.toString() ?? '') ??
+                            0,
+                    url: url,
+                    size: int.tryParse(format['size']?.toString() ?? '') ?? 0,
+                  );
+                })
+                .whereType<Audio>()
+                .toList();
+          }
 
-              final codecDescription =
-                  '${format['encoding'] ?? ''} ${format['type'] ?? ''}'
-                      .toLowerCase();
-              return Audio(
-                itag: itag,
-                audioCodec: codecDescription.contains('aac') ||
-                        codecDescription.contains('mp4a')
-                    ? Codec.mp4a
-                    : Codec.opus,
-                bitrate: int.tryParse(format['bitrate']?.toString() ?? '') ?? 0,
-                duration: durationMs,
-                loudnessDb:
-                    double.tryParse(video!['loudness']?.toString() ?? '') ?? 0,
-                url: url,
-                size: int.tryParse(format['size']?.toString() ?? '') ?? 0,
+          var formats = parseFormats(video['adaptiveFormats'] as List?);
+          if (formats.isEmpty) {
+            try {
+              final directVideo = await invidious.video(
+                videoId,
+                local: false,
+                region: region.isEmpty ? null : region,
               );
-            })
-            .whereType<Audio>()
-            .toList();
-      }
+              formats = parseFormats(directVideo['adaptiveFormats'] as List?);
+            } catch (_) {}
+          }
 
-      var formats = parseFormats(video['adaptiveFormats'] as List?);
-
-      // If local: true formats were empty or all expired, attempt local: false
-      if (formats.isEmpty) {
-        try {
-          final directVideo = await invidious.video(videoId, local: false);
-          formats = parseFormats(directVideo['adaptiveFormats'] as List?);
-        } catch (_) {}
-      }
-
-      if (formats.isEmpty) {
-        return StreamProvider(
-          playable: false,
-          statusMSG: "Invidious returned no playable audio streams",
-        );
+          if (formats.isNotEmpty) {
+            return StreamProvider(
+              playable: true,
+              statusMSG: "OK",
+              audioFormats: formats,
+            );
+          }
+        } catch (_) {
+          continue;
+        }
       }
 
       return StreamProvider(
-        playable: true,
-        statusMSG: "OK",
-        audioFormats: formats,
+        playable: false,
+        statusMSG: "Invidious returned no playable audio streams",
       );
     } catch (error) {
       return StreamProvider(

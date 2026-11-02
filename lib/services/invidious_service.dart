@@ -106,10 +106,15 @@ class InvidiousService extends GetxService {
   Future<Map<String, dynamic>> video(
     String videoId, {
     bool local = false,
+    String? region,
   }) async {
+    final queryParameters = <String, dynamic>{'local': local};
+    if (region != null && region.isNotEmpty) {
+      queryParameters['region'] = region;
+    }
     final result = await _get(
       'videos/${Uri.encodeComponent(videoId)}',
-      queryParameters: {'local': local},
+      queryParameters: queryParameters,
     );
     return Map<String, dynamic>.from(result as Map);
   }
