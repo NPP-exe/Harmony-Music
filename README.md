@@ -29,12 +29,12 @@
 
 <p align="center">
   <a href="https://github.com/NPP-exe">
-    <img src="assets/images/branding_maintained_pill.png" alt="Maintained by NPP" height="42" />
+    <img src="assets/images/branding_maintained_pill.png" alt="Maintained by NPP" height="62" width="auto" />
   </a>
 </p>
 
 <p align="center">
-  <em>Actively maintained by <a href="https://github.com/NPP-exe"><b>@NPP-exe</b></a> • Originally created by <a href="https://github.com/anandnet"><b>@anandnet</b></a></em>
+  <em>🌟 Actively Maintained by <a href="https://github.com/NPP-exe"><b>@NPP-exe</b></a> • Originally created by <a href="https://github.com/anandnet"><b>@anandnet</b></a></em>
 </p>
 
 [**Download Releases**](https://github.com/NPP-exe/Harmony-Music/releases/latest) • [**Launch Web App**](https://npp-exe.github.io/Harmony-Music/) • [**Report an Issue**](https://github.com/NPP-exe/Harmony-Music/issues) • [**Translate on Weblate**](https://hosted.weblate.org/engage/harmony-music/)
