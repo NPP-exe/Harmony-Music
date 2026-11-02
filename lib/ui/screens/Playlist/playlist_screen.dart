@@ -626,6 +626,10 @@ class PlaylistScreen extends StatelessWidget {
                                           tag: playlistController
                                               .playlist.value.playlistId,
                                           screenController: playlistController,
+                                          sortController: playlistController
+                                              .playlistSortController,
+                                          addedOrderTooltip: playlistController.hasUnknownAdditionOrder
+                                              ? 'sortByAddedOrderUnknown'.tr : null,
                                           isSearchFeatureRequired: true,
                                           isPlaylistRearrageFeatureRequired: !playlistController
                                                   .playlist
@@ -647,8 +651,11 @@ class PlaylistScreen extends StatelessWidget {
                                               "${playlistController.songList.length}",
                                           itemIcon: Icons.music_note,
                                           titleLeftPadding: 9,
-                                          requiredSortTypes:
-                                              buildSortTypeSet(false, true),
+                                          requiredSortTypes: const {
+                                            SortType.Duration,
+                                            SortType.AddedOrder,
+                                            SortType.Custom,
+                                          },
                                           onSort: playlistController.onSort,
                                           onSearch: playlistController.onSearch,
                                           onSearchClose:

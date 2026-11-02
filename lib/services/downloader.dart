@@ -12,6 +12,7 @@ import 'package:hive/hive.dart';
 
 import '../ui/screens/Album/album_screen_controller.dart';
 import '../ui/screens/Playlist/playlist_screen_controller.dart';
+import 'playlist_song_store.dart';
 import '/services/stream_service.dart';
 import '../ui/widgets/snackbar.dart';
 import '/services/permission_service.dart';
@@ -256,7 +257,7 @@ class Downloader extends GetxService {
             'size': await cachedFile.length(),
           },
         ];
-        Hive.box('SongDownloads').put(song.id, songJson);
+        await PlaylistSongStore.put('SongDownloads', song.id, songJson);
         Get.find<LibrarySongsController>().librarySongsList.add(song);
         songDownloadingProgress.value = 100;
         printINFO('Copied from cache successfully');
@@ -389,7 +390,7 @@ class Downloader extends GetxService {
           streamInfoJson['url'] = filePath;
           songJson["streamInfo"] = [true, streamInfoJson];
 
-          Hive.box("SongDownloads").put(song.id, songJson);
+          await PlaylistSongStore.put('SongDownloads', song.id, songJson);
           Get.find<LibrarySongsController>().librarySongsList.add(song);
           printINFO("Downloaded successfully");
 

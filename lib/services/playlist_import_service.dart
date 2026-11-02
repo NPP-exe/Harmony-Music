@@ -167,7 +167,10 @@ class PlaylistImportService {
       );
       songsBox = await Hive.openBox(id);
       for (var i = 0; i < data.songs.length; i++) {
-        await songsBox.put(i, data.songs[i]);
+        final song = Map<String, dynamic>.from(data.songs[i])
+          ..remove('playlistAdditionOrder')
+          ..remove('playlistPosition');
+        await songsBox.put(i, song);
         onProgress?.call((i + 1) / data.songs.length);
       }
       await songsBox.flush();

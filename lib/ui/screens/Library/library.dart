@@ -238,6 +238,7 @@ class PlaylistNAlbumLibraryWidget extends StatelessWidget {
                   )
                 : SortWidget(
                     tag: "LibPlaylistSort",
+                    sortController: librplstCntrller.librarySortController,
                     screenController: librplstCntrller,
                     isAdditionalOperationRequired: false,
                     isSearchFeatureRequired: true,

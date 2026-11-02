@@ -60,7 +60,7 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
   /// Fetches the songs of an album/playlist from database.
   ///
   /// [id] - The unique identifier of the album/playlist.
-  void fetchSongsfromDatabase(String id) async {
+  Future<void> fetchSongsfromDatabase(String id) async {
     final box = await Hive.openBox(id);
     songList.value = box.values
         .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))

@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:hive/hive.dart';
 import 'package:harmonymusic/ui/screens/Library/library_controller.dart';
 
 import 'additional_operation_dialog.dart';
@@ -14,6 +15,8 @@ enum SortType {
   Date,
   Duration,
   RecentlyPlayed,
+  AddedOrder,
+  Custom,
 }
 
 Set<SortType> buildSortTypeSet(
@@ -55,6 +58,8 @@ class SortWidget extends StatelessWidget {
     this.performAdditionalOperation,
     this.cancelAdditionalOperation,
     this.isImportFeatureRequired = false,
+    this.sortController,
+    this.addedOrderTooltip,
     required this.onSort,
   });
 
@@ -78,6 +83,8 @@ class SortWidget extends StatelessWidget {
   final Function(String?)? onSearchClose;
   final Function(SortType, bool) onSort;
   final bool isImportFeatureRequired;
+  final SortWidgetController? sortController;
+  final String? addedOrderTooltip;
 
   Future<void> _showImportDialog(BuildContext context) async {
     final shouldImport = await showDialog<bool>(
@@ -144,7 +151,8 @@ class SortWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.put(SortWidgetController(), tag: tag);
+    final controller = sortController ??
+        Get.put<SortWidgetController>(SortWidgetController(), tag: tag);
     return Padding(
       padding: const EdgeInsets.only(top: 10.0),
       child: SizedBox(
@@ -207,6 +215,24 @@ class SortWidget extends StatelessWidget {
                               },
                             ))
                         : const SizedBox.shrink(),
+                    if (requiredSortTypes.contains(SortType.AddedOrder))
+                      Obx(() => _customIconButton(
+                            isSelected: controller.sortType.value ==
+                                SortType.AddedOrder,
+                            icon: Icons.playlist_add,
+                            tooltip: addedOrderTooltip ?? "sortByAddedOrder".tr,
+                            onPressed: () =>
+                                controller.onSortByAddedOrder(onSort),
+                          )),
+                    if (requiredSortTypes.contains(SortType.Custom))
+                      Obx(() => _customIconButton(
+                            isSelected:
+                                controller.sortType.value == SortType.Custom,
+                            icon: Icons.format_list_numbered,
+                            tooltip: "sortByPlaylistOrder".tr,
+                            onPressed: () =>
+                                controller.onSortByCustomOrder(onSort),
+                          )),
                     const Expanded(child: SizedBox()),
                     Obx(
                       () => _customIconButton(
@@ -287,7 +313,6 @@ class SortWidget extends StatelessWidget {
                         .scaffoldBackgroundColor
                         .withAlpha(125),
                     child: ModifiedTextField(
-                      controller: controller.textEditingController,
                       textAlignVertical: TextAlignVertical.center,
                       autofocus: true,
                       onChanged: (value) {
@@ -345,14 +370,86 @@ class SortWidget extends StatelessWidget {
 }
 
 class SortWidgetController extends GetxController {
-  final Rx<SortType> sortType = SortType.Name.obs;
+  SortWidgetController(
+      {SortType initialSortType = SortType.Name, this.isTemporaryPreference})
+      : sortType = initialSortType.obs;
+
+  String? preferenceKey;
+  final bool Function()? isTemporaryPreference;
+  final Rx<SortType> sortType;
   final isAscending = true.obs;
   final isSearchingEnabled = false.obs;
   final isRearraningEnabled = false.obs;
   final isDeletionEnabled = false.obs;
   final isAddtoPlaylistEnabled = false.obs;
   final isAllSelected = false.obs;
-  TextEditingController textEditingController = TextEditingController();
+
+  void loadPreference(String key, {SortType defaultSortType = SortType.Name}) {
+    preferenceKey = key;
+    sortType.value = defaultSortType;
+    isAscending.value = true;
+    if (!Hive.isBoxOpen('AppPrefs')) return;
+    final saved = Hive.box('AppPrefs').get(key);
+    if (saved is! Map) return;
+    sortType.value = SortType.values.firstWhere(
+      (type) => type.name == saved['type'],
+      orElse: () => defaultSortType,
+    );
+    isAscending.value = saved['ascending'] is bool ? saved['ascending'] : true;
+  }
+
+  Future<void> setSort(SortType type, bool ascending) async {
+    sortType.value = type;
+    isAscending.value = ascending;
+    final key = preferenceKey;
+    final temporary = isTemporaryPreference?.call() ?? false;
+    if (key != null && Hive.isBoxOpen('AppPrefs')) {
+      final prefs = Hive.box('AppPrefs');
+      final updates = <dynamic, dynamic>{
+        key: {'type': type.name, 'ascending': ascending},
+      };
+      final evicted = <String>[];
+      if (key.startsWith('playlistSort:')) {
+        final recent = List<String>.from(
+            prefs.get('temporaryPlaylistSorts', defaultValue: <String>[]));
+        recent.remove(key);
+        if (temporary) recent.add(key);
+        while (recent.length > 100) {
+          evicted.add(recent.removeAt(0));
+        }
+        updates['temporaryPlaylistSorts'] = recent;
+      }
+      // Hive publishes mutations synchronously. Start the entire update before
+      // yielding, so eviction cannot delete a preference saved by a later click.
+      await Future.wait([
+        prefs.putAll(updates),
+        if (evicted.isNotEmpty) prefs.deleteAll(evicted),
+      ]);
+    }
+  }
+
+  void onSortByAddedOrder(Function onSort) {
+    sortType.value = SortType.AddedOrder;
+    onSort(sortType.value, isAscending.value);
+  }
+
+  void onSortByCustomOrder(Function onSort) {
+    sortType.value = SortType.Custom;
+    onSort(sortType.value, isAscending.value);
+  }
+
+  static Future<void> removePlaylistPreference(String id) async {
+    if (!Hive.isBoxOpen('AppPrefs')) return;
+    final prefs = Hive.box('AppPrefs');
+    final key = 'playlistSort:$id';
+    final recent = List<String>.from(
+        prefs.get('temporaryPlaylistSorts', defaultValue: <String>[]));
+    recent.remove(key);
+    await Future.wait([
+      prefs.put('temporaryPlaylistSorts', recent),
+      prefs.delete(key),
+    ]);
+  }
 
   void setActiveMode(OperationMode mode) {
     isAddtoPlaylistEnabled.value = OperationMode.addToPlaylist == mode;

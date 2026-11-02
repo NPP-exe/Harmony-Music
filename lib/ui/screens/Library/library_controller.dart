@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../../../services/playlist_import_service.dart';
+import '../../../services/playlist_song_store.dart';
 
 import '../../../utils/house_keeping.dart';
 import '../../widgets/add_to_playlist.dart';
@@ -60,7 +61,7 @@ class LibrarySongsController extends GetxController {
           : <String>{};
       for (final element in box.keys) {
         if (!songsList.contains(element)) {
-          box.delete(element);
+          await PlaylistSongStore.remove('SongsCache', [element]);
         }
       }
     }
@@ -187,13 +188,12 @@ class LibrarySongsController extends GetxController {
 
   Future<void> deleteMultipleSongs(List<MediaItem> songs) async {
     final downloadsBox = await Hive.openBox("SongDownloads");
-    final cacheBox = await Hive.openBox("SongsCache");
     for (MediaItem element in songs) {
       if (downloadsBox.containsKey(element.id)) {
-        await downloadsBox.delete(element.id);
+        await PlaylistSongStore.remove('SongDownloads', [element.id]);
         removeSong(element, true);
       } else {
-        await cacheBox.delete(element.id);
+        await PlaylistSongStore.remove('SongsCache', [element.id]);
         removeSong(element, false);
       }
     }
@@ -224,6 +224,7 @@ class LibraryPlaylistsController extends GetxController
   late AnimationController controller;
 
   final playlistCreationMode = "local".obs;
+  final librarySortController = SortWidgetController();
   static final initPlst = [
     Playlist(
       title: "recentlyPlayed".tr,
@@ -250,7 +251,11 @@ class LibraryPlaylistsController extends GetxController
       isCloudPlaylist: false,
     ),
   ];
-  late RxList<Playlist> libraryPlaylists = RxList(initPlst);
+  late RxList<Playlist> libraryPlaylists = RxList([...initPlst]);
+  List<Playlist> _allPlaylists = [...initPlst];
+  String? _playlistSearchQuery;
+  bool containsPlaylist(String id) =>
+      _allPlaylists.any((playlist) => playlist.playlistId == id);
   final isContentFetched = false.obs;
   final creationInProgress = false.obs;
   final textInputController = TextEditingController();
@@ -262,6 +267,7 @@ class LibraryPlaylistsController extends GetxController
 
   @override
   void onInit() {
+    librarySortController.loadPreference('libraryPlaylistSort');
     controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
@@ -272,7 +278,7 @@ class LibraryPlaylistsController extends GetxController
 
   Future<void> refreshLib() async {
     final box = await Hive.openBox("LibraryPlaylists");
-    libraryPlaylists.value = [
+    _allPlaylists = [
       ...initPlst,
       ...(box.values
           .map<Playlist?>((item) => Playlist.fromJson(item))
@@ -285,30 +291,33 @@ class LibraryPlaylistsController extends GetxController
       if (appPrefsBox.get("piped")['isLoggedIn']) await syncPipedPlaylist();
     }
 
+    _applyPlaylistSort();
+
     isContentFetched.value = true;
     await box.close();
   }
 
-  void updatePlaylistIntoDb(Playlist playlist) async {
+  Future<void> updatePlaylistIntoDb(Playlist playlist) async {
     final box = await Hive.openBox("LibraryPlaylists");
-    box.put(playlist.playlistId, playlist.toJson());
-    refreshLib();
+    await box.put(playlist.playlistId, playlist.toJson());
+    await refreshLib();
   }
 
-  void removePipedPlaylists() {
-    for (Playlist plst in libraryPlaylists.toList()) {
+  Future<void> removePipedPlaylists() async {
+    for (Playlist plst in _allPlaylists.toList()) {
       if (plst.isPipedPlaylist) {
-        libraryPlaylists.remove(plst);
+        _allPlaylists.remove(plst);
+        await SortWidgetController.removePlaylistPreference(plst.playlistId);
       }
     }
+    _applyPlaylistSort();
   }
 
   Future<void> syncPipedPlaylist() async {
     final res = await Get.find<PipedServices>().getAllPlaylists();
     final box = await Hive.openBox('blacklistedPlaylist');
     final blacklistedPlaylist = box.values.whereType<String>().toList();
-    final libPipedPlaylistsId =
-        libraryPlaylists
+    final libPipedPlaylistsId = _allPlaylists
             .toList()
             .map((e) {
               if (e.isPipedPlaylist) {
@@ -336,19 +345,22 @@ class LibraryPlaylistsController extends GetxController
             thumbnailUrl: playlist['thumbnail'],
             isPipedPlaylist: true,
           );
-          libraryPlaylists.add(plst);
+          _allPlaylists.add(plst);
         }
       }
 
       //remove playist if removed from cloud
-      for (Playlist playlist in libraryPlaylists.toList()) {
+      for (Playlist playlist in _allPlaylists.toList()) {
         if (!cloudpipedPlaylistsId.contains(playlist.playlistId) &&
             playlist.isPipedPlaylist) {
-          libraryPlaylists.removeWhere(
+          _allPlaylists.removeWhere(
             (element) => element.playlistId == playlist.playlistId,
           );
+          await SortWidgetController.removePlaylistPreference(
+              playlist.playlistId);
         }
       }
+      _applyPlaylistSort();
     }
     box.close();
   }
@@ -420,14 +432,12 @@ class LibraryPlaylistsController extends GetxController
         await box.close();
       }
 
-      libraryPlaylists.add(newplst);
+      _allPlaylists.add(newplst);
+      _applyPlaylistSort();
 
       if (createPlaylistNaddSong && playlistCreationMode.value == "local") {
-        final plastbox = await Hive.openBox(newplst.playlistId);
-        for (MediaItem item in songItems!) {
-          plastbox.add(MediaItemBuilder.toJson(item));
-        }
-        plastbox.close();
+        await PlaylistSongStore.append(newplst.playlistId,
+            songItems!.map(MediaItemBuilder.toJson).toList());
       } else if ((createPlaylistNaddSong &&
           playlistCreationMode.value == "piped")) {
         final songIds = songItems!.map((e) => e.id).toList();
@@ -445,7 +455,9 @@ class LibraryPlaylistsController extends GetxController
   Future<void> blacklistPipedPlaylist(Playlist playlist) async {
     final box = await Hive.openBox('blacklistedPlaylist');
     box.add(playlist.playlistId);
-    libraryPlaylists.remove(playlist);
+    _allPlaylists.removeWhere((entry) => entry.playlistId == playlist.playlistId);
+    await SortWidgetController.removePlaylistPreference(playlist.playlistId);
+    _applyPlaylistSort();
     box.close();
   }
 
@@ -456,30 +468,43 @@ class LibraryPlaylistsController extends GetxController
   }
 
   void onSort(SortType sortType, bool isAscending) {
-    final playlists = libraryPlaylists.toList();
-    playlists.removeRange(0, 4);
-    sortPlayLists(playlists, sortType, isAscending);
+    librarySortController.setSort(sortType, isAscending);
+    _applyPlaylistSort();
+  }
+
+  void _applyPlaylistSort() {
+    final defaultIds = initPlst.map((playlist) => playlist.playlistId).toSet();
+    final playlists = _allPlaylists
+        .where((playlist) => !defaultIds.contains(playlist.playlistId))
+        .toList();
+    sortPlayLists(playlists, librarySortController.sortType.value,
+        librarySortController.isAscending.value);
     playlists.insertAll(0, initPlst);
-    libraryPlaylists.value = playlists;
+    if (_playlistSearchQuery != null) {
+      tempListContainer = playlists;
+      libraryPlaylists.value = playlists
+          .where((playlist) =>
+              playlist.title.toLowerCase().contains(_playlistSearchQuery!))
+          .toList();
+    } else {
+      tempListContainer.clear();
+      libraryPlaylists.value = playlists;
+    }
   }
 
   void onSearchStart(String? tag) {
-    tempListContainer = libraryPlaylists.toList();
+    _playlistSearchQuery = '';
+    _applyPlaylistSort();
   }
 
   void onSearch(String value, String? tag) {
-    final songlist = tempListContainer
-        .where(
-          (element) =>
-              element.title.toLowerCase().contains(value.toLowerCase()),
-        )
-        .toList();
-    libraryPlaylists.value = songlist;
+    _playlistSearchQuery = value.toLowerCase();
+    _applyPlaylistSort();
   }
 
   void onSearchClose(String? tag) {
-    libraryPlaylists.value = tempListContainer.toList();
-    tempListContainer.clear();
+    _playlistSearchQuery = null;
+    _applyPlaylistSort();
   }
 
   @override

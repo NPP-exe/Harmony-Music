@@ -10,7 +10,7 @@ import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 
 import '../../models/playling_from.dart';
 import '../../services/downloader.dart';
-import '../screens/Playlist/playlist_screen_controller.dart';
+import '../../services/playlist_song_store.dart';
 import '../widgets/snackbar.dart';
 import '/services/synced_lyrics_service.dart';
 import '/ui/screens/Settings/settings_screen_controller.dart';
@@ -872,21 +872,12 @@ class PlayerController extends GetxController
 
   Future<void> toggleFavourite() async {
     final currMediaItem = currentSong.value!;
-    final box = await Hive.openBox("LIBFAV");
-    isCurrentSongFav.isFalse
-        ? box.put(currMediaItem.id, MediaItemBuilder.toJson(currMediaItem))
-        : box.delete(currMediaItem.id);
-    try {
-      final playlistController = Get.find<PlaylistScreenController>(
-          tag: const Key("LIBFAV").hashCode.toString());
-      isCurrentSongFav.isFalse
-          ? playlistController.addNRemoveItemsinList(currMediaItem,
-              action: 'add', index: 0)
-          : playlistController.addNRemoveItemsinList(currMediaItem,
-              action: 'remove');
-
-      // ignore: empty_catches
-    } catch (e) {}
+    if (isCurrentSongFav.isFalse) {
+      await PlaylistSongStore.put('LIBFAV', currMediaItem.id,
+          MediaItemBuilder.toJson(currMediaItem));
+    } else {
+      await PlaylistSongStore.remove('LIBFAV', [currMediaItem.id]);
+    }
     isCurrentSongFav.value = !isCurrentSongFav.value;
     if (Get.find<SettingsScreenController>()
             .autoDownloadFavoriteSongEnabled
@@ -902,35 +893,7 @@ class PlayerController extends GetxController
   /// This function is used to add a mediaItem/Song to Recently played playlist
   Future<void> _addToRP(MediaItem mediaItem) async {
     if (recentItem != mediaItem) {
-      final box = await Hive.openBox("LIBRP");
-      String? removedSongId;
-      if (box.keys.length >= 30) {
-        removedSongId = box.getAt(0)['videoId'];
-        box.deleteAt(0);
-      }
-      final valuesCopy = box.values.toList();
-      for (int i = valuesCopy.length - 1; i >= 0; i--) {
-        if (valuesCopy[i]['videoId'] == mediaItem.id) {
-          box.deleteAt(i);
-        }
-      }
-      box.add(MediaItemBuilder.toJson(mediaItem));
-      try {
-        final playlistController = Get.find<PlaylistScreenController>(
-            tag: const Key("LIBRP").hashCode.toString());
-        if (removedSongId != null) {
-          playlistController.songList
-              .removeWhere((element) => element.id == removedSongId);
-        }
-        // removes current duplicate item from list
-        playlistController.songList
-            .removeWhere((element) => element.id == mediaItem.id);
-        // adds current item to list
-        playlistController.addNRemoveItemsinList(mediaItem,
-            action: 'add', index: 0);
-
-        // ignore: empty_catches
-      } catch (e) {}
+      await PlaylistSongStore.recentlyPlayed(mediaItem);
     }
     recentItem = mediaItem;
   }

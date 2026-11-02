@@ -20,6 +20,7 @@ import '/services/stream_service.dart';
 import '/models/hm_streaming_data.dart';
 import '/ui/player/player_controller.dart';
 import '../ui/screens/Home/home_screen_controller.dart';
+import 'playlist_song_store.dart';
 import '/services/background_task.dart';
 import '/services/permission_service.dart';
 import '../utils/helper.dart';
@@ -713,7 +714,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
                             : "highQualityAudio"],
                   ]
                 : null;
-            songsCacheBox.put(song.id, jsonData);
+            await PlaylistSongStore.put('SongsCache', song.id, jsonData);
             LibrarySongsController librarySongsController =
                 Get.find<LibrarySongsController>();
             if (!librarySongsController.isClosed) {

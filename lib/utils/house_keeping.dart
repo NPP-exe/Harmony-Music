@@ -9,6 +9,7 @@ import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../services/utils.dart';
+import '../services/playlist_song_store.dart';
 import 'helper.dart';
 
 void startHouseKeeping() {
@@ -49,7 +50,7 @@ Future<void> removeDeletedOfflineSongsFromDb() async {
       final songKey = downloadedSongs[i]['videoId'];
       final songUrl = downloadedSongs[i]['url'];
       if (await File(songUrl).exists() == false) {
-        await songDownloadsBox.delete(songKey);
+        await PlaylistSongStore.remove('SongDownloads', [songKey]);
         await librarySongsController.removeSong(
           MediaItemBuilder.fromJson(downloadedSongs[i]),
           true,

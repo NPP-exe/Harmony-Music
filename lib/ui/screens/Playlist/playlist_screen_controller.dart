@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -18,6 +19,8 @@ import '../../../models/media_Item_builder.dart';
 import '../../../models/playlist.dart';
 import '../../../services/music_service.dart';
 import '../../../services/piped_service.dart';
+import '../../../services/playlist_song_store.dart';
+import '../../widgets/sort_widget.dart';
 import '../Home/home_screen_controller.dart';
 import '../Library/library_controller.dart';
 
@@ -33,6 +36,212 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     thumbnailUrl: Playlist.thumbPlaceholderUrl,
   ).obs;
   final isDefaultPlaylist = false.obs;
+  late final playlistSortController = SortWidgetController(
+      initialSortType: SortType.Custom,
+      isTemporaryPreference: () =>
+          playlist.value.isCloudPlaylist &&
+          !isDefaultPlaylist.value &&
+          !isAddedToLibrary.value &&
+          !(Get.isRegistered<LibraryPlaylistsController>() &&
+              Get.find<LibraryPlaylistsController>()
+                  .containsPlaylist(playlist.value.playlistId)));
+  List<PlaylistSongRecord> _records = [];
+  List<PlaylistSongRecord> _orderedRecords = [];
+  Map<MediaItem, dynamic> _arrangementKeys = Map.identity();
+  Map<dynamic, int?> _arrangementAdditions = {};
+  StreamSubscription<PlaylistSongChange>? _songChanges;
+  Future<void>? _remoteRefresh;
+  bool _disposed = false;
+  String _searchQuery = '';
+  bool get hasUnknownAdditionOrder =>
+      _records.any((entry) => entry.additionOrder == null);
+
+  /// Restore the preference before loading songs, so the controls and list agree.
+  void loadSortPreference(String playlistId) {
+    playlistSortController.loadPreference('playlistSort:$playlistId',
+        defaultSortType:
+            playlistId == 'LIBFAV' ? SortType.AddedOrder : SortType.Custom);
+  }
+
+  @override
+  void onSort(SortType sortType, bool isAscending) {
+    playlistSortController.setSort(sortType, isAscending);
+    _applySort();
+  }
+
+  void _setSongs(List<PlaylistSongRecord> songs) {
+    if (_disposed) return;
+    _records = songs;
+    _applySort();
+  }
+
+  int _compareRecords(PlaylistSongRecord a, PlaylistSongRecord b) {
+    int result;
+    switch (playlistSortController.sortType.value) {
+      case SortType.AddedOrder:
+        final left = a.additionOrder;
+        final right = b.additionOrder;
+        result = left == null
+            ? (right == null ? 0 : -1)
+            : (right == null ? 1 : left.compareTo(right));
+        break;
+      case SortType.Name:
+        result =
+            a.song.title.toLowerCase().compareTo(b.song.title.toLowerCase());
+        break;
+      case SortType.Duration:
+        result = (a.song.duration ?? Duration.zero)
+            .compareTo(b.song.duration ?? Duration.zero);
+        break;
+      default:
+        result = 0;
+    }
+    if (result == 0) result = a.position.compareTo(b.position);
+    if (playlist.value.playlistId == 'LIBRP' &&
+        playlistSortController.sortType.value == SortType.Custom) {
+      result = -result;
+    }
+    return playlistSortController.isAscending.value ? result : -result;
+  }
+
+  void _applySort() {
+    _orderedRecords = _records.toList()..sort(_compareRecords);
+    _publishSongs();
+  }
+
+  void _publishSongs() {
+    final songs = _orderedRecords.map((entry) => entry.song).toList();
+    if (isSearchingOn.value) {
+      tempListContainer = songs;
+      songList.value = songs
+          .where((song) => song.title.toLowerCase().contains(_searchQuery))
+          .toList();
+    } else {
+      songList.value = songs;
+    }
+  }
+
+  void _listenForChanges() {
+    _songChanges ??= PlaylistSongStore.changes.listen((change) {
+      if (_disposed || change.playlistId != playlist.value.playlistId) return;
+      if (change.remote) {
+        // One refresh per burst; errors are isolated from the successful write.
+        _remoteRefresh ??=
+            _refreshRemote().whenComplete(() => _remoteRefresh = null);
+        return;
+      }
+      try {
+        final removed = change.removedKeys.toSet();
+        if (change.upserts.length > 1) {
+          final byKey = {for (final entry in _records) entry.key: entry};
+          byKey.removeWhere((key, _) => removed.contains(key));
+          for (final entry in change.upserts) {
+            byKey[entry.key] = entry;
+          }
+          _records = byKey.values.toList();
+          _applySort();
+          unawaited(_updatePlaylistThumbSongBased());
+          return;
+        }
+        _records.removeWhere((entry) => removed.contains(entry.key));
+        _orderedRecords.removeWhere((entry) => removed.contains(entry.key));
+        for (final entry in change.upserts) {
+          _records.removeWhere((old) => old.key == entry.key);
+          _orderedRecords.removeWhere((old) => old.key == entry.key);
+          _records.add(entry);
+          // Binary insertion avoids rereading the box or sorting the full list
+          // for each completed download or cache write.
+          var low = 0;
+          var high = _orderedRecords.length;
+          while (low < high) {
+            final middle = (low + high) ~/ 2;
+            if (_compareRecords(_orderedRecords[middle], entry) <= 0) {
+              low = middle + 1;
+            } else {
+              high = middle;
+            }
+          }
+          _orderedRecords.insert(low, entry);
+        }
+        _publishSongs();
+        unawaited(_updatePlaylistThumbSongBased());
+      } catch (error) {
+        printERROR('Could not update the playlist view: $error');
+      }
+    });
+  }
+
+  Future<void> _refreshRemote() async {
+    try {
+      await _fetchSongOnline(
+          playlist.value.playlistId, false, playlist.value.isPipedPlaylist);
+    } catch (error) {
+      printERROR('Could not refresh the playlist view: $error');
+    } finally {
+      if (!_disposed) isContentFetched.value = true;
+    }
+  }
+
+  Future<void> stopSongUpdates() async {
+    _disposed = true;
+    await _songChanges?.cancel();
+    _songChanges = null;
+  }
+
+  @override
+  Future<void> fetchSongsfromDatabase(String id) async {
+    _listenForChanges();
+    _setSongs(await PlaylistSongStore.read(id));
+    if (_disposed) return;
+    checkDownloadStatus();
+  }
+
+  @override
+  void onSearchStart(String? tag) {
+    super.onSearchStart(tag);
+    _searchQuery = '';
+  }
+
+  @override
+  void startAdditionalOperation(
+      SortWidgetController sortWidgetController_, OperationMode mode) {
+    super.startAdditionalOperation(sortWidgetController_, mode);
+    _arrangementKeys = Map.identity();
+    _arrangementAdditions = {};
+    for (final entry in _orderedRecords) {
+      _arrangementKeys[entry.song] = entry.key;
+      _arrangementAdditions[entry.key] = entry.additionOrder;
+    }
+  }
+
+  @override
+  void onSearch(String value, String? tag) {
+    _searchQuery = value.toLowerCase();
+    super.onSearch(value, tag);
+  }
+
+  @override
+  void onSearchClose(String? tag) {
+    _searchQuery = '';
+    super.onSearchClose(tag);
+  }
+
+  @override
+  Future<void> performAdditionalOperation() async {
+    if (additionalOperationMode.value != OperationMode.arrange) {
+      super.performAdditionalOperation();
+      return;
+    }
+    final keys = additionalOperationTempList
+        .where(_arrangementKeys.containsKey)
+        .map((song) => _arrangementKeys[song])
+        .toList();
+    _setSongs(await PlaylistSongStore.reorder(playlist.value.playlistId, keys,
+        originalAdditions: _arrangementAdditions));
+    onSort(SortType.Custom, true);
+    sortWidgetController?.setActiveMode(OperationMode.none);
+    cancelAdditionalOperation();
+  }
 
   // Add this RxBool to track export progress
   final isExporting = false.obs;
@@ -78,6 +287,8 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   ///Fetches playlist details from the service
   @override
   void fetchPlaylistDetails(Playlist? playlist_, String playlistId) async {
+    _listenForChanges();
+    loadSortPreference(playlistId);
     final isIdOnly = playlist_ == null;
     final isPipedPlaylist = playlist_?.isPipedPlaylist ?? false;
     isDefaultPlaylist.value = (playlistId == "SongDownloads" ||
@@ -88,7 +299,7 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     if (!isIdOnly && !playlist_.isCloudPlaylist) {
       playlist.value = playlist_;
       _animationController.forward();
-      fetchSongsfromDatabase(playlistId);
+      await fetchSongsfromDatabase(playlistId);
       isContentFetched.value = true;
 
       Future.delayed(
@@ -107,16 +318,15 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
       if (await checkIfAddedToLibrary(playlistId)) {
         final songsBox = await Hive.openBox(playlistId);
         if (songsBox.values.isEmpty) {
-          _fetchSongOnline(playlistId, isIdOnly, isPipedPlaylist).then((value) {
-            updateSongsIntoDb();
-          });
+          await _fetchSongOnline(playlistId, isIdOnly, isPipedPlaylist);
+          await updateSongsIntoDb();
         } else {
           // If the playlist is offline, fetch the songs from the local database
           // Playlist details are already fetched in _checkIfAddedToLibrary method
-          fetchSongsfromDatabase(playlistId);
+          await fetchSongsfromDatabase(playlistId);
         }
       } else {
-        _fetchSongOnline(playlistId, isIdOnly, isPipedPlaylist);
+        await _fetchSongOnline(playlistId, isIdOnly, isPipedPlaylist);
       }
       isContentFetched.value = true;
     } catch (e) {
@@ -127,10 +337,13 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
   Future<void> _fetchSongOnline(
       String id, bool isIdOnly, bool isPipedPlaylist) async {
+    if (_disposed) return;
     isContentFetched.value = false;
 
     if (isPipedPlaylist) {
-      songList.value = (await Get.find<PipedServices>().getPlaylistSongs(id));
+      final songs = await Get.find<PipedServices>().getPlaylistSongs(id);
+      if (_disposed) return;
+      _setOnlineSongs(songs);
       isContentFetched.value = true;
       checkDownloadStatus();
       return;
@@ -138,22 +351,36 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     final content =
         await _musicServices.getPlaylistOrAlbumSongs(playlistId: id);
+    if (_disposed) return;
 
     if (isIdOnly) {
       content['playlistId'] = id;
       playlist.value = Playlist.fromJson(content);
       _animationController.forward();
     }
-    songList.value = List<MediaItem>.from(content['tracks']);
+    _setOnlineSongs(List<MediaItem>.from(content['tracks']));
     checkDownloadStatus();
   }
 
+  void _setOnlineSongs(List<MediaItem> songs) {
+    // Online services expose the playlist sequence, not addition timestamps.
+    // Use that sequence as the addition order for the fetched snapshot.
+    _setSongs([
+      for (int i = 0; i < songs.length; i++)
+        PlaylistSongRecord(i, {
+          ...MediaItemBuilder.toJson(songs[i]),
+          'playlistAdditionOrder': i,
+          'playlistPosition': i,
+        }),
+    ]);
+  }
+
   @override
-  void syncPlaylistSongs() {
-    _fetchSongOnline(playlist.value.playlistId, false, false).then((value) {
-      updateSongsIntoDb();
-      isContentFetched.value = true;
-    });
+  Future<void> syncPlaylistSongs() async {
+    await _fetchSongOnline(
+        playlist.value.playlistId, false, playlist.value.isPipedPlaylist);
+    await updateSongsIntoDb();
+    isContentFetched.value = true;
   }
 
   @override
@@ -172,26 +399,29 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
         //remove piped playlist from lib
         final res =
             await Get.find<PipedServices>().deletePlaylist(content.playlistId);
+        if (res.code == 1) {
+          await SortWidgetController.removePlaylistPreference(
+              content.playlistId);
+          isAddedToLibrary.value = false;
+        }
         Get.find<LibraryPlaylistsController>().syncPipedPlaylist();
         return (res.code == 1);
       } else {
         final box = await Hive.openBox("LibraryPlaylists");
         final id = content.playlistId;
         if (add) {
-          box.put(id, content.toJson());
-          updateSongsIntoDb();
+          await box.put(id, content.toJson());
+          await updateSongsIntoDb();
         } else {
-          box.delete(id);
-          final songsBox = await Hive.openBox(id);
-          songsBox.deleteFromDisk();
+          await box.delete(id);
+          await PlaylistSongStore.delete(id);
         }
         isAddedToLibrary.value = add;
       }
       //Update frontend
       Get.find<LibraryPlaylistsController>().refreshLib();
-      if (!content.isCloudPlaylist && !add) {
-        final plstbox = await Hive.openBox(content.playlistId);
-        plstbox.deleteFromDisk();
+      if (!add) {
+        await SortWidgetController.removePlaylistPreference(content.playlistId);
       }
       return true;
     } catch (e) {
@@ -201,13 +431,8 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
   @override
   Future<void> updateSongsIntoDb() async {
-    final songsBox = await Hive.openBox(playlist.value.playlistId);
-    await songsBox.clear();
-    final songListCopy = songList.toList();
-    for (int i = 0; i < songListCopy.length; i++) {
-      await songsBox.put(i, MediaItemBuilder.toJson(songListCopy[i]));
-    }
-    if (playlist.value.playlistId != "SongDownloads") await songsBox.close();
+    await PlaylistSongStore.saveSnapshot(
+        playlist.value.playlistId, _records.toList());
 
     // Update the playlist thumbnail based on the first song's thumbnail
     _updatePlaylistThumbSongBased();
@@ -218,46 +443,20 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
     final id = playlist.value.playlistId;
     final isoffline = id == "SongsCache" || id == "SongDownloads";
 
-    final box_ = await Hive.openBox(id);
+    final keys = songs
+        .where(_arrangementKeys.containsKey)
+        .map((song) => _arrangementKeys[song])
+        .toList();
+    await PlaylistSongStore.remove(id, keys);
     for (MediaItem element in songs) {
-      final index = box_.values
-          .toList()
-          .indexWhere((ele) => ele['videoId'] == element.id);
-      await box_.deleteAt(index);
-
       if (isoffline) {
         await Get.find<LibrarySongsController>()
             .removeSong(element, id == "SongDownloads");
       }
-
-      songList.removeWhere((song) => song.id == element.id);
     }
-    if (!isoffline) await box_.close();
-
+    _records.removeWhere((entry) => keys.contains(entry.key));
+    _applySort();
     // Update the playlist thumbnail based on the first song's thumbnail
-    _updatePlaylistThumbSongBased();
-  }
-
-  void addNRemoveItemsinList(MediaItem? item,
-      {required String action, int? index}) {
-    if (action == 'add') {
-      if (tempListContainer.isNotEmpty) {
-        index != null
-            ? tempListContainer.insert(index, item!)
-            : tempListContainer.add(item!);
-        return;
-      }
-      index != null ? songList.insert(index, item!) : songList.add(item!);
-    } else {
-      if (tempListContainer.isNotEmpty) {
-        index != null
-            ? tempListContainer.removeAt(index)
-            : tempListContainer.remove(item);
-      }
-      index != null ? songList.removeAt(index) : songList.remove(item);
-    }
-
-    // update the playlist thumbnail based on the first song's thumbnail
     _updatePlaylistThumbSongBased();
   }
 
@@ -265,17 +464,20 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
   void fetchAlbumDetails(Album? album_,String albumId) {} // Not used in this class
 
   /// This function updates the local playlist thumbnail based on the first song's thumbnail
-  void _updatePlaylistThumbSongBased() {
+  Future<void> _updatePlaylistThumbSongBased() async {
     final currentPlaylist = playlist.value;
 
-    if (isDefaultPlaylist.isTrue || currentPlaylist.isCloudPlaylist) {
+    if (_disposed ||
+        isDefaultPlaylist.isTrue ||
+        currentPlaylist.isCloudPlaylist) {
       return;
     }
 
     Playlist updatedplaylist;
-    if (songList.isNotEmpty) {
-      updatedplaylist =
-          currentPlaylist.copyWith(thumbnailUrl: songList[0].artUri.toString());
+    if (_orderedRecords.isNotEmpty) {
+      updatedplaylist = currentPlaylist.copyWith(
+          thumbnailUrl: _orderedRecords.first.song.artUri?.toString() ??
+              Playlist.thumbPlaceholderUrl);
     } else {
       updatedplaylist =
           currentPlaylist.copyWith(thumbnailUrl: Playlist.thumbPlaceholderUrl);
@@ -290,12 +492,17 @@ class PlaylistScreenController extends PlaylistAlbumScreenControllerBase
 
     // Update the playlist thumbnail URL
     playlist.value = updatedplaylist;
-    Get.find<LibraryPlaylistsController>()
-        .updatePlaylistIntoDb(updatedplaylist);
+    try {
+      await Get.find<LibraryPlaylistsController>()
+          .updatePlaylistIntoDb(updatedplaylist);
+    } catch (error) {
+      printERROR('Could not update the playlist thumbnail: $error');
+    }
   }
 
   @override
   void onClose() {
+    unawaited(stopSongUpdates());
     tempListContainer.clear();
     _animationController.dispose();
     Get.find<HomeScreenController>().whenHomeScreenOnTop();

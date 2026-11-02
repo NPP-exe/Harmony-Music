@@ -7,9 +7,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/downloader.dart';
+import '../../services/playlist_song_store.dart';
 import '../screens/Playlist/playlist_screen_controller.dart';
 import '../screens/Settings/settings_screen_controller.dart';
-import '/utils/helper.dart';
 import '/services/piped_service.dart';
 import '/ui/widgets/sleep_timer_bottom_sheet.dart';
 import '/ui/player/player_controller.dart';
@@ -442,10 +442,12 @@ class SongInfoController extends GetxController
         return;
       }
     }
-    final box = await Hive.openBox("LIBFAV");
-    isCurrentSongFav.isFalse
-        ? box.put(song.id, MediaItemBuilder.toJson(song))
-        : box.delete(song.id);
+    if (isCurrentSongFav.isFalse) {
+      await PlaylistSongStore.put(
+          'LIBFAV', song.id, MediaItemBuilder.toJson(song));
+    } else {
+      await PlaylistSongStore.remove('LIBFAV', [song.id]);
+    }
     isCurrentSongFav.value = !isCurrentSongFav.value;
     if (Get.find<SettingsScreenController>()
             .autoDownloadFavoriteSongEnabled
@@ -462,46 +464,35 @@ mixin RemoveSongFromPlaylistMixin {
     //Library songs case
     if (playlist.playlistId == "SongsCache") {
       if (!box.containsKey(item.id)) {
-        Hive.box("SongDownloads").delete(item.id);
+        await PlaylistSongStore.remove('SongDownloads', [item.id]);
         Get.find<LibrarySongsController>().removeSong(item, true);
       } else {
         Get.find<LibrarySongsController>().removeSong(item, false);
-        box.delete(item.id);
+        await PlaylistSongStore.remove('SongsCache', [item.id]);
       }
     } else if (playlist.playlistId == "SongDownloads") {
-      box.delete(item.id);
+      await PlaylistSongStore.remove('SongDownloads', [item.id]);
       Get.find<LibrarySongsController>().removeSong(item, true);
     } else if (!playlist.isPipedPlaylist) {
       //Other playlist song case
       final index =
           box.values.toList().indexWhere((ele) => ele['videoId'] == item.id);
-      await box.deleteAt(index);
+      if (index >= 0) {
+        await PlaylistSongStore.remove(playlist.playlistId, [box.keyAt(index)]);
+      }
     }
 
-    // this try catch block is to handle the case when song is removed from libsongs sections
-    try {
-      final plstCntroller = Get.find<PlaylistScreenController>(
-          tag: Key(playlist.playlistId).hashCode.toString());
-      if (playlist.isPipedPlaylist) {
+    if (playlist.isPipedPlaylist) {
+      final res =
+          await Get.find<PipedServices>().getPlaylistSongs(playlist.playlistId);
+      final songIndex = res.indexWhere((element) => element.id == item.id);
+      if (songIndex != -1) {
         final res = await Get.find<PipedServices>()
-            .getPlaylistSongs(playlist.playlistId);
-        final songIndex = res.indexWhere((element) => element.id == item.id);
-        if (songIndex != -1) {
-          final res = await Get.find<PipedServices>()
-              .removeFromPlaylist(playlist.playlistId, songIndex);
-          if (res.code == 1) {
-            plstCntroller.addNRemoveItemsinList(item, action: 'remove');
-          }
+            .removeFromPlaylist(playlist.playlistId, songIndex);
+        if (res.code == 1) {
+          PlaylistSongStore.remoteChanged(playlist.playlistId);
         }
-        return;
       }
-
-      try {
-        plstCntroller.addNRemoveItemsinList(item, action: 'remove');
-        // ignore: empty_catches
-      } catch (e) {}
-    } catch (e) {
-      printERROR("Some Error in removeSongFromPlaylist (might irrelavant): $e");
     }
 
     if (playlist.playlistId == "SongDownloads" ||
