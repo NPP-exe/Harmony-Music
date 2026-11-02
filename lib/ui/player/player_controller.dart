@@ -96,7 +96,7 @@ class PlayerController extends GetxController
 
   @override
   void onReady() {
-    if (GetPlatform.isWindows) {
+    if (!GetPlatform.isWeb && GetPlatform.isWindows) {
       Get.put(WindowsAudioService());
     }
     _restorePrevSession();
@@ -1109,7 +1109,7 @@ class PlayerController extends GetxController
     scrollController.dispose();
     gesturePlayerStateAnimationController?.dispose();
     sleepTimer?.cancel();
-    if (GetPlatform.isWindows) {
+    if (!GetPlatform.isWeb && GetPlatform.isWindows) {
       Get.delete<WindowsAudioService>();
     }
     // ensure wakelock disabled when player controller disposed

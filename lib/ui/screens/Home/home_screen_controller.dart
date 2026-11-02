@@ -69,7 +69,9 @@ class HomeScreenController extends GetxController {
   }
 
   Future<bool> loadContentFromDb() async {
-    final homeScreenData = await Hive.openBox("homeScreenData");
+    final homeScreenData = Hive.isBoxOpen("homeScreenData")
+        ? Hive.box("homeScreenData")
+        : await Hive.openBox("homeScreenData");
     if (homeScreenData.keys.isNotEmpty) {
       final quickPicksType = homeScreenData.get("quickPicksType");
       final quickPicksData = homeScreenData.get("quickPicks");
@@ -634,7 +636,9 @@ class HomeScreenController extends GetxController {
       return;
     }
 
-    final homeScreenData = Hive.box("homeScreenData");
+    final homeScreenData = Hive.isBoxOpen("homeScreenData")
+        ? Hive.box("homeScreenData")
+        : await Hive.openBox("homeScreenData");
 
     if (updateQuickPicksNMiddleContent) {
       await homeScreenData.putAll({

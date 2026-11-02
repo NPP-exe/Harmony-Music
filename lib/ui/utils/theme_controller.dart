@@ -397,23 +397,30 @@ class ThemeController extends GetxController {
   }
 
   Future<void> setWindowsTitleBarColor(Color color) async {
-    if (!GetPlatform.isWindows) return;
+    if (kIsWeb || GetPlatform.isWeb || !GetPlatform.isWindows) return;
     try {
       Future.delayed(
         const Duration(milliseconds: 350),
-        () async => await platform.invokeMethod('setTitleBarColor', {
-          'r': (color.r * 255).toInt(),
-          'g': (color.g * 255).toInt(),
-          'b': (color.b * 255).toInt(),
-        }),
+        () async {
+          if (kIsWeb || GetPlatform.isWeb || !GetPlatform.isWindows) return;
+          try {
+            await platform.invokeMethod('setTitleBarColor', {
+              'r': (color.r * 255).toInt(),
+              'g': (color.g * 255).toInt(),
+              'b': (color.b * 255).toInt(),
+            });
+          } catch (e) {
+            printERROR("Failed to set title bar color: $e");
+          }
+        },
       );
-    } on PlatformException catch (e) {
-      printERROR("Failed to set title bar color: ${e.message}");
+    } catch (e) {
+      printERROR("Failed to set title bar color: $e");
     }
   }
 
   void _setSystemUIOverlayStyle(SystemUiOverlayStyle style) {
-    if (GetPlatform.isWeb) return;
+    if (kIsWeb || GetPlatform.isWeb) return;
     SystemChrome.setSystemUIOverlayStyle(style);
   }
 }

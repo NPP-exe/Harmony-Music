@@ -77,7 +77,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   bool _webPlaylistInitialized = false;
 
   MyAudioHandler() {
-    if (GetPlatform.isWindows || GetPlatform.isLinux) {
+    if (!GetPlatform.isWeb && (GetPlatform.isWindows || GetPlatform.isLinux)) {
       JustAudioMediaKit.title = 'Harmony music';
       JustAudioMediaKit.protocolWhitelist = const ['http', 'https', 'file'];
     }
@@ -647,8 +647,11 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         playbackState.add(
           playbackState.value.copyWith(queueIndex: currentIndex),
         );
-        await _playList.add(_createAudioSource(currentSong));
-        await _initializeWebPlaylist();
+        if (GetPlatform.isWeb) {
+          await _player.setAudioSource(_createAudioSource(currentSong));
+        } else {
+          await _playList.add(_createAudioSource(currentSong));
+        }
 
         isSongLoading = false;
         if (loudnessNormalizationEnabled && GetPlatform.isAndroid) {
@@ -747,8 +750,11 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         }
         currentSongUrl = currMed.extras!['url'] = streamInfo.audio!.url;
 
-        await _playList.add(_createAudioSource(currMed));
-        await _initializeWebPlaylist();
+        if (GetPlatform.isWeb) {
+          await _player.setAudioSource(_createAudioSource(currMed));
+        } else {
+          await _playList.add(_createAudioSource(currMed));
+        }
         isSongLoading = false;
 
         // Normalize audio

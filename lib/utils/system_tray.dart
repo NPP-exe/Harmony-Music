@@ -12,17 +12,20 @@ class DesktopSystemTray extends GetxService with TrayListener {
 
   @override
   void onInit() {
+    if (GetPlatform.isWeb || !GetPlatform.isDesktop) return;
     trayManager.addListener(this);
     Future.delayed(const Duration(seconds: 2), () => initSystemTray());
     super.onInit();
   }
 
   Future<void> initSystemTray() async {
-    String path = GetPlatform.isWindows
-        ? 'assets/icons/icon.ico'
-        : 'assets/icons/icon.png';
+    if (GetPlatform.isWeb || !GetPlatform.isDesktop) return;
+    try {
+      String path = GetPlatform.isWindows
+          ? 'assets/icons/icon.ico'
+          : 'assets/icons/icon.png';
 
-    await windowManager.ensureInitialized();
+      await windowManager.ensureInitialized();
     final playerController = Get.find<PlayerController>();
 
     await trayManager.setIcon(path);
@@ -76,6 +79,9 @@ class DesktopSystemTray extends GetxService with TrayListener {
     await windowManager.setPreventClose(true);
     listener = CloseWindowListener();
     windowManager.addListener(listener);
+    } catch (e) {
+      // Ignore system tray / window manager errors on unsupported environments
+    }
   }
 
   @override

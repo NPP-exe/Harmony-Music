@@ -55,7 +55,7 @@ class Home extends StatelessWidget {
             } else if (playerController.buttonState.value ==
                 PlayButtonState.playing) {
               SystemNavigator.pop();
-            } else {
+            } else if (!GetPlatform.isWeb) {
               await Get.find<AudioHandler>().customAction("saveSession");
               exit(0);
             }

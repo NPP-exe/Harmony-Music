@@ -66,7 +66,9 @@ abstract class PlaylistAlbumScreenControllerBase extends GetxController {
         .map<MediaItem?>((item) => MediaItemBuilder.fromJson(item))
         .whereType<MediaItem>()
         .toList();
-    if (id != "SongDownloads") await box.close();
+    if (!{'songdownloads', 'songscache', 'libfav', 'librp'}.contains(id.toLowerCase())) {
+      await box.close();
+    }
     songList.value =
         id == "LIBRP" ? songList.reversed.toList() : songList.toList();
     checkDownloadStatus();

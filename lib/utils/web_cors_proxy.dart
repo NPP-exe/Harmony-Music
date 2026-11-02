@@ -7,7 +7,10 @@ Uri withWebCorsProxy(Uri uri, {bool? isWeb}) {
   if (!(isWeb ?? kIsWeb) ||
       (uri.scheme != 'http' && uri.scheme != 'https') ||
       uri.host == Uri.parse(webCorsProxyBaseUrl).host ||
-      uri.host == 'api.github.com') {
+      uri.host == 'api.github.com' ||
+      uri.host.contains('lrclib.net') ||
+      uri.host.contains('chocolatemoo53.com') ||
+      uri.host.contains('invidious')) {
     return uri;
   }
 

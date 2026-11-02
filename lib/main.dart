@@ -134,8 +134,8 @@ Future<void> startApplicationServices() async {
   Get.lazyPut(() => LibraryArtistsController(), fenix: true);
   Get.lazyPut(() => SettingsScreenController(), fenix: true);
   Get.lazyPut(() => Downloader(), fenix: true);
-  if (GetPlatform.isDesktop) {
-    Get.lazyPut(() => SearchScreenController(), fenix: true);
+  Get.lazyPut(() => SearchScreenController(), fenix: true);
+  if (!GetPlatform.isWeb && GetPlatform.isDesktop) {
     Get.put(DesktopSystemTray());
   }
 }
@@ -152,6 +152,8 @@ Future<void> initHive() async {
   await Hive.openBox("SongDownloads");
   await Hive.openBox('SongsUrlCache');
   await Hive.openBox("AppPrefs");
+  await Hive.openBox("homeScreenData");
+  await Hive.openBox("searchQuery");
 }
 
 Future<BackupRestoreService> _backupRestoreService() async {
