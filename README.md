@@ -7,7 +7,6 @@
 [![Latest Release](https://img.shields.io/github/v/release/NPP-exe/Harmony-Music?style=for-the-badge&color=00E5FF&label=Release)](https://github.com/NPP-exe/Harmony-Music/releases/latest)
 [![Web App](https://img.shields.io/badge/Web_App-Live_Demo-06B6D4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://npp-exe.github.io/Harmony-Music/)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](LICENSE)
-[![Translation Status](https://hosted.weblate.org/widget/harmony-music/project-translations/multi-auto.svg)](https://hosted.weblate.org/engage/harmony-music/)
 
 <br />
 
