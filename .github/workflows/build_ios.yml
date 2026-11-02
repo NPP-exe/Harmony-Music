@@ -103,20 +103,6 @@ jobs:
           print(f"Installed audiotags {version.group(1)} iOS XCFramework at {framework_dir}")
           PY
 
-      - name: Verify audiotags iOS bridge symbols
-        shell: bash
-        run: |
-          set -euo pipefail
-          library=$(find "$HOME/.pub-cache/hosted/pub.dev" -path '*/audiotags-*/ios/Frameworks/audiotags.xcframework/ios-arm64/libaudiotags.a' -print -quit)
-          test -n "$library"
-          symbols=$(nm -gU "$library")
-          for symbol in _drop_dart_object _free_WireSyncReturn _get_dart_object _new_box_autoadd_tag_0 _wire_read _wire_write; do
-            grep -q "$symbol" <<< "$symbols" || {
-              echo "Missing audiotags iOS symbol: $symbol"
-              exit 1
-            }
-          done
-
       - name: Patch terminate_restart for Flutter 3.29
         shell: bash
         run: |

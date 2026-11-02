@@ -692,45 +692,26 @@ class SettingsScreen extends StatelessWidget {
                 title: "appInfo".tr,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14.0, vertical: 12.0),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: context.isPhone ? 0.0 : 10.0,
+                      vertical: 6.0,
+                    ),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Theme.of(context).cardColor.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(24),
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(22),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.08),
+                          color: Colors.white.withValues(alpha: 0.1),
                           width: 1.0,
                         ),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0, vertical: 20.0),
-                        child: Column(
-                          children: [
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: TextButton.icon(
-                                style: TextButton.styleFrom(
-                                  foregroundColor: const Color(0xFF00E5FF),
-                                ),
-                                icon: const Icon(
-                                  Icons.fullscreen_rounded,
-                                  size: 18,
-                                ),
-                                label: const Text(
-                                  'Fullscreen',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                                onPressed: () => Get.to(
-                                  () => const AppInfoScreen(),
-                                ),
-                              ),
-                            ),
-                            AppInfoContent(
-                              settingsController: settingsController,
-                            ),
-                          ],
+                        padding: EdgeInsets.symmetric(
+                          horizontal: context.isPhone ? 4.0 : 16.0,
+                          vertical: 16.0,
+                        ),
+                        child: AppInfoContent(
+                          settingsController: settingsController,
                         ),
                       ),
                     ),

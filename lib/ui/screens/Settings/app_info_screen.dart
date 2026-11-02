@@ -13,34 +13,27 @@ import 'settings_screen_controller.dart';
 Widget frostedGlassCard({
   required Widget child,
   double? height,
-  EdgeInsetsGeometry padding = const EdgeInsets.all(20),
+  EdgeInsetsGeometry? padding,
 }) {
   return ClipRRect(
-    borderRadius: BorderRadius.circular(24),
+    borderRadius: BorderRadius.circular(22),
     child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
       child: Container(
         height: height,
-        padding: padding,
+        padding: padding ?? const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withValues(alpha: 0.09),
-              Colors.white.withValues(alpha: 0.02),
-            ],
-          ),
+          borderRadius: BorderRadius.circular(22),
+          color: const Color(0xFF0C131D).withValues(alpha: 0.85),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.18),
-            width: 1.2,
+            color: Colors.white.withValues(alpha: 0.12),
+            width: 1.0,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
-              blurRadius: 28,
-              offset: const Offset(0, 10),
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -57,7 +50,7 @@ class AppInfoScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final settingsController = Get.find<SettingsScreenController>();
     return Scaffold(
-      backgroundColor: Theme.of(context).canvasColor,
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
           children: [
@@ -68,9 +61,9 @@ class AppInfoScreen extends StatelessWidget {
               child: Row(
                 children: [
                   IconButton(
-                    icon: Icon(
+                    icon: const Icon(
                       Icons.arrow_back_ios_new_rounded,
-                      color: Theme.of(context).iconTheme.color ?? Colors.white,
+                      color: Colors.white,
                       size: 20,
                     ),
                     onPressed: () => Get.back(),
@@ -84,8 +77,10 @@ class AppInfoScreen extends StatelessWidget {
             // Main Content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 12),
+                padding: EdgeInsets.symmetric(
+                  horizontal: context.isPhone ? 6.0 : 20.0,
+                  vertical: 12.0,
+                ),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 1000),
@@ -181,6 +176,7 @@ class AppInfoContent extends StatelessWidget {
 
   /// 1. Hero Branding
   Widget _buildHeroBranding(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -191,23 +187,23 @@ class AppInfoContent extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.45),
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
                 blurRadius: 36,
-                spreadRadius: 4,
+                spreadRadius: 6,
               ),
             ],
           ),
           child: Image.asset(
             'assets/images/branding_waveform_cyan.png',
-            height: 48,
+            height: isMobile ? 64 : 80,
             fit: BoxFit.contain,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
 
         // HARMONY MUSIC Stencil-cut Typography (Rafika Font)
         SizedBox(
-          height: 28,
+          height: isMobile ? 38 : 48,
           child: FittedBox(
             fit: BoxFit.contain,
             child: Image.asset(
@@ -216,22 +212,22 @@ class AppInfoContent extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
 
         // Ultra-clean Version Tag Pill
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3.5),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
           decoration: BoxDecoration(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: const Color(0xFF00E5FF).withValues(alpha: 0.55),
-              width: 1.0,
+              color: const Color(0xFF00E5FF).withValues(alpha: 0.6),
+              width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
-                blurRadius: 10,
+                color: const Color(0xFF00E5FF).withValues(alpha: 0.25),
+                blurRadius: 12,
                 spreadRadius: 0,
               ),
             ],
@@ -239,9 +235,9 @@ class AppInfoContent extends StatelessWidget {
           child: Obx(
             () => Text(
               settingsController.formattedVersion,
-              style: const TextStyle(
-                color: Color(0xFF00E5FF),
-                fontSize: 11.5,
+              style: TextStyle(
+                color: const Color(0xFF00E5FF),
+                fontSize: isMobile ? 12.5 : 14.0,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.8,
               ),
@@ -255,52 +251,74 @@ class AppInfoContent extends StatelessWidget {
   /// 2. Developer Hero Card (Large & Balanced)
   Widget _buildDeveloperHeroCard(
       BuildContext context, BoxConstraints constraints) {
-    final isMobile = constraints.maxWidth < 500;
-    final cardHeight = isMobile ? 145.0 : 175.0;
-    final horizontalPad = isMobile ? 18.0 : 28.0;
-    final verticalPad = isMobile ? 14.0 : 16.0;
+    final isMobile = constraints.maxWidth < 600;
 
-    return frostedGlassCard(
-      height: cardHeight,
-      padding: EdgeInsets.symmetric(
-        horizontal: horizontalPad,
-        vertical: verticalPad,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // LEFT: "Maintained by NPP" (Slicey Heallow Regular brush script)
-          Expanded(
-            flex: 6,
-            child: Container(
-              alignment: Alignment.centerLeft,
-              child: Image.asset(
-                'assets/images/branding_maintained_by_npp.png',
-                height: isMobile ? 60.0 : 75.0,
-                fit: BoxFit.contain,
-                color: Colors.white,
+    if (isMobile) {
+      // APK / Mobile: ONE BELOW ANOTHER (Vertical stack, large and centered)
+      return frostedGlassCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 22.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // "Maintained by NPP" (Large & Centered)
+            Image.asset(
+              'assets/images/branding_maintained_by_npp.png',
+              height: 72.0,
+              fit: BoxFit.contain,
+              color: Colors.white,
+            ),
+            const SizedBox(height: 18),
+            // "Narayan" signature with multi-layer cyan neon glow (Large & Centered)
+            Image.asset(
+              'assets/images/branding_signature_cyan_glow.png',
+              height: 135.0,
+              fit: BoxFit.contain,
+            ),
+          ],
+        ),
+      );
+    } else {
+      // EXE / Desktop: SINGLE ROW (Side by side, large & balanced)
+      return frostedGlassCard(
+        height: 200.0,
+        padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 20.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // LEFT: "Maintained by NPP"
+            Expanded(
+              flex: 6,
+              child: Container(
+                alignment: Alignment.centerLeft,
+                child: Image.asset(
+                  'assets/images/branding_maintained_by_npp.png',
+                  height: 95.0,
+                  fit: BoxFit.contain,
+                  color: Colors.white,
+                ),
               ),
             ),
-          ),
 
-          SizedBox(width: isMobile ? 10.0 : 18.0),
+            const SizedBox(width: 24.0),
 
-          // RIGHT: "Narayan" signature with multi-layer cyan neon glow
-          Expanded(
-            flex: 5,
-            child: Container(
-              alignment: Alignment.centerRight,
-              child: Image.asset(
-                'assets/images/branding_signature_cyan_glow.png',
-                height: isMobile ? 95.0 : 130.0,
-                fit: BoxFit.contain,
+            // RIGHT: "Narayan" signature
+            Expanded(
+              flex: 6,
+              child: Container(
+                alignment: Alignment.centerRight,
+                child: Image.asset(
+                  'assets/images/branding_signature_cyan_glow.png',
+                  height: 175.0,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    }
   }
 
   /// 3A. Contributors Card
