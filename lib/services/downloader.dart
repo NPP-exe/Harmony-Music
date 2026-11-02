@@ -21,11 +21,12 @@ import '/utils/helper.dart';
 import '/models/media_Item_builder.dart';
 import '../ui/screens/Library/library_controller.dart';
 import 'music_service.dart';
+import '../utils/web_cors_proxy.dart';
 
 //import '../models/thumbnail.dart' as th;
 
 class Downloader extends GetxService {
-  final _dio = Dio();
+  final _dio = createWebAwareDio();
   MediaItem? currentSong;
   RxMap<String, List<MediaItem>> playlistQueue =
       <String, List<MediaItem>>{}.obs;

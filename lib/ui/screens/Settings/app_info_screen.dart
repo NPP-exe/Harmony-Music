@@ -74,8 +74,8 @@ class AppInfoScreen extends StatelessWidget {
               children: [
                 // Top Navigation Bar
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 8.0),
                   child: Row(
                     children: [
                       IconButton(
@@ -494,7 +494,7 @@ class AppInfoContent extends StatelessWidget {
                     child: _buildAvatarCircle(
                       label: "J",
                       handle: "@jaxenisr",
-                      role: "Contributor",
+                      role: "First Contributor",
                       color: const Color(0xFFA855F7),
                       url: "https://github.com/jaxenisr",
                     ),

@@ -1,9 +1,9 @@
 import 'dart:math';
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import 'app_constants.dart';
+import 'web_cors_proxy.dart';
 import '/ui/navigator.dart';
 import '/ui/widgets/sort_widget.dart';
 
@@ -206,7 +206,7 @@ bool isVersionGreater(String current, String available) {
 /// Checks for new version and returns detailed update info
 Future<VersionUpdateInfo> newVersionCheckWithDetails(String currentVersion) async {
   try {
-    final dio = Dio();
+    final dio = createWebAwareDio();
     try {
       final res = await dio.get(appLatestReleaseApiUrl);
       if (res.data != null) {

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '/services/invidious_service.dart';
 import '../screens/Settings/settings_screen_controller.dart';
 import '/models/artist.dart';
 import '../../models/album.dart';
@@ -39,6 +40,11 @@ class ImageWidget extends StatelessWidget {
                 : artist != null
                     ? artist!.thumbnailUrl
                     : "";
+    if (imageUrl.startsWith('/')) {
+      imageUrl = Get.find<InvidiousService>().resolveMediaUrlForActiveInstance(
+        imageUrl,
+      );
+    }
     // String cacheKey = song != null
     //     ? "${song!.id}_song"
     //     : playlist != null
@@ -81,7 +87,8 @@ class ImageWidget extends StatelessWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.secondary,
-                    shape: artist != null ? BoxShape.circle : BoxShape.rectangle,
+                    shape:
+                        artist != null ? BoxShape.circle : BoxShape.rectangle,
                     borderRadius:
                         artist != null ? null : BorderRadius.circular(5),
                   ),

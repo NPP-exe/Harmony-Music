@@ -50,9 +50,12 @@ class SettingsScreenController extends GetxController {
   final keepScreenAwake = false.obs;
   final restorePlaybackSession = false.obs;
   final cacheHomeScreenData = true.obs;
+  final webExperimentWarningEnabled = true.obs;
   final _currentVersion = "v1.24.0".obs;
   String get currentVersion => _currentVersion.value;
-  String get formattedVersion => _currentVersion.value.startsWith('v') ? _currentVersion.value : 'v${_currentVersion.value}';
+  String get formattedVersion => _currentVersion.value.startsWith('v')
+      ? _currentVersion.value
+      : 'v${_currentVersion.value}';
   final latestVersion = "".obs;
   final releaseNotes = "".obs;
   final releaseUrl = appReleasesUrl.obs;
@@ -120,20 +123,18 @@ class SettingsScreenController extends GetxController {
     currentAppLanguageCode.value = appLang == "zh_Hant"
         ? "zh-TW"
         : appLang == "zh_Hans"
-        ? "zh-CN"
-        : appLang;
-    isBottomNavBarEnabled.value = isDesktop
-        ? false
-        : (setBox.get("isBottomNavBarEnabled") ?? false);
+            ? "zh-CN"
+            : appLang;
+    isBottomNavBarEnabled.value =
+        isDesktop ? false : (setBox.get("isBottomNavBarEnabled") ?? false);
     noOfHomeScreenContent.value = setBox.get("noOfHomeScreenContent") ?? 3;
     isTransitionAnimationDisabled.value =
         setBox.get("isTransitionAnimationDisabled") ?? false;
     cacheSongs.value = setBox.get('cacheSongs') ?? false;
     themeModetype.value =
         ThemeType.values[setBox.get('themeModeType') ?? ThemeType.dark.index];
-    skipSilenceEnabled.value = isDesktop
-        ? false
-        : (setBox.get("skipSilenceEnabled") ?? false);
+    skipSilenceEnabled.value =
+        isDesktop ? false : (setBox.get("skipSilenceEnabled") ?? false);
     loudnessNormalizationEnabled.value = isDesktop
         ? false
         : (setBox.get("loudnessNormalizationEnabled") ?? false);
@@ -141,9 +142,10 @@ class SettingsScreenController extends GetxController {
     restorePlaybackSession.value =
         setBox.get("restrorePlaybackSession") ?? false;
     cacheHomeScreenData.value = setBox.get("cacheHomeScreenData") ?? true;
+    webExperimentWarningEnabled.value =
+        setBox.get('webExperimentWarningEnabled') ?? true;
     final savedQuality = setBox.get('streamingQuality');
-    final qualityIndex =
-        savedQuality is int &&
+    final qualityIndex = savedQuality is int &&
             savedQuality >= 0 &&
             savedQuality < AudioQuality.values.length
         ? savedQuality
@@ -157,8 +159,8 @@ class SettingsScreenController extends GetxController {
         setBox.get('downloadLocationPath') ?? await _createInAppSongDownDir();
     downloadLocationPath.value =
         (isDesktop && downloadPath.contains("emulated"))
-        ? await _createInAppSongDownDir()
-        : downloadPath;
+            ? await _createInAppSongDownDir()
+            : downloadPath;
 
     exportLocationPath.value =
         setBox.get("exportLocationPath") ?? "/storage/emulated/0/Music";
@@ -217,9 +219,8 @@ class SettingsScreenController extends GetxController {
       homeScrCon.onSideBarTabSelected(5);
     }
     if (!Get.find<PlayerController>().initFlagForPlayer) {
-      playerCon.playerPanelMinHeight.value = val
-          ? 75.0
-          : 75.0 + Get.mediaQuery.viewPadding.bottom;
+      playerCon.playerPanelMinHeight.value =
+          val ? 75.0 : 75.0 + Get.mediaQuery.viewPadding.bottom;
     }
     setBox.put("isBottomNavBarEnabled", val);
   }
@@ -281,6 +282,11 @@ class SettingsScreenController extends GetxController {
       }
       // ignore: empty_catches
     } catch (e) {}
+  }
+
+  void setWebExperimentWarningEnabled(bool value) {
+    setBox.put('webExperimentWarningEnabled', value);
+    webExperimentWarningEnabled.value = value;
   }
 
   void resetDownloadLocation() {

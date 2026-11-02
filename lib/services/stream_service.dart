@@ -1,7 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+
+import 'invidious_service.dart';
 
 class StreamProvider {
   final bool playable;
@@ -14,8 +17,11 @@ class StreamProvider {
   });
 
   static Future<StreamProvider> fetch(String videoId) async {
-    final yt = YoutubeExplode();
+    if (kIsWeb) {
+      return _fetchInvidious(videoId);
+    }
 
+    final yt = YoutubeExplode();
     try {
       // Explicitly specify clients in priority order so we don't depend on
       // library defaults. tv works without signature decoding and on restricted
@@ -72,10 +78,74 @@ class StreamProvider {
           statusMSG: "Unknown error occurred",
         );
       }
+    } finally {
+      yt.close();
+    }
+  }
+
+  static Future<StreamProvider> _fetchInvidious(String videoId) async {
+    try {
+      final video = await Get.find<InvidiousService>().video(
+        videoId,
+        local: true,
+      );
+      final durationMs =
+          ((int.tryParse(video['lengthSeconds']?.toString() ?? '') ?? 0) *
+                  1000)
+              .toInt();
+      final formats = (video['adaptiveFormats'] as List? ?? const [])
+          .whereType<Map>()
+          .where(
+            (format) =>
+                (format['type'] as String? ?? '').startsWith('audio/'),
+          )
+          .map((format) {
+            final itag = int.tryParse(format['itag']?.toString() ?? '');
+            final url = format['url'] as String?;
+            if (itag == null || url == null || url.isEmpty) return null;
+
+            final codecDescription =
+                '${format['encoding'] ?? ''} ${format['type'] ?? ''}'
+                    .toLowerCase();
+            return Audio(
+              itag: itag,
+              audioCodec: codecDescription.contains('aac') ||
+                      codecDescription.contains('mp4a')
+                  ? Codec.mp4a
+                  : Codec.opus,
+              bitrate: int.tryParse(format['bitrate']?.toString() ?? '') ?? 0,
+              duration: durationMs,
+              loudnessDb:
+                  double.tryParse(video['loudness']?.toString() ?? '') ?? 0,
+              url: url,
+              size: int.tryParse(format['size']?.toString() ?? '') ?? 0,
+            );
+          })
+          .whereType<Audio>()
+          .toList();
+
+      if (formats.isEmpty) {
+        return StreamProvider(
+          playable: false,
+          statusMSG: "Invidious returned no playable audio streams",
+        );
+      }
+
+      return StreamProvider(
+        playable: true,
+        statusMSG: "OK",
+        audioFormats: formats,
+      );
+    } catch (error) {
+      return StreamProvider(
+        playable: false,
+        statusMSG: "Invidious playback failed: $error",
+      );
     }
   }
 
   bool get _usesAacForNativePlayback =>
+      kIsWeb ||
       defaultTargetPlatform == TargetPlatform.iOS ||
       defaultTargetPlatform == TargetPlatform.macOS;
 

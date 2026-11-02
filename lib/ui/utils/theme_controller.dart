@@ -73,8 +73,7 @@ class ThemeController extends GetxController {
       ResizeImage(imageProvider, height: 200, width: 200),
     );
     //final colorList = generator.colors;
-    final paletteColor =
-        generator.dominantColor ??
+    final paletteColor = generator.dominantColor ??
         generator.darkMutedColor ??
         generator.darkVibrantColor ??
         generator.lightMutedColor ??
@@ -106,7 +105,7 @@ class ThemeController extends GetxController {
     Color? textColor,
   }) {
     if (themeType == ThemeType.dynamic) {
-      SystemChrome.setSystemUIOverlayStyle(
+      _setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
           statusBarIconBrightness: Brightness.light,
           statusBarColor: Colors.transparent,
@@ -203,7 +202,7 @@ class ThemeController extends GetxController {
         textTheme: GoogleFonts.interTextTheme(baseTheme.textTheme),
       );
     } else if (themeType == ThemeType.dark) {
-      SystemChrome.setSystemUIOverlayStyle(
+      _setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
           statusBarIconBrightness: Brightness.light,
           statusBarColor: Colors.transparent,
@@ -284,7 +283,7 @@ class ThemeController extends GetxController {
         textTheme: GoogleFonts.interTextTheme(baseTheme.textTheme),
       );
     } else {
-      SystemChrome.setSystemUIOverlayStyle(
+      _setSystemUIOverlayStyle(
         SystemUiOverlayStyle(
           statusBarIconBrightness: Brightness.dark,
           statusBarColor: Colors.transparent,
@@ -411,6 +410,11 @@ class ThemeController extends GetxController {
     } on PlatformException catch (e) {
       printERROR("Failed to set title bar color: ${e.message}");
     }
+  }
+
+  void _setSystemUIOverlayStyle(SystemUiOverlayStyle style) {
+    if (GetPlatform.isWeb) return;
+    SystemChrome.setSystemUIOverlayStyle(style);
   }
 }
 

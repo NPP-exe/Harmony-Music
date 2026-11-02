@@ -36,6 +36,11 @@ class HomeScreenController extends GetxController {
   }
 
   Future<void> loadContent() async {
+    if (GetPlatform.isWeb) {
+      await loadContentFromNetwork();
+      return;
+    }
+
     final box = Hive.box("AppPrefs");
     final isCachedHomeScreenDataEnabled =
         box.get("cacheHomeScreenData") ?? true;
@@ -48,8 +53,7 @@ class HomeScreenController extends GetxController {
       }
 
       if (loaded) {
-        final currTimeSecsDiff =
-            DateTime.now().millisecondsSinceEpoch -
+        final currTimeSecsDiff = DateTime.now().millisecondsSinceEpoch -
             (box.get("homeScreenDataTime") ??
                 DateTime.now().millisecondsSinceEpoch);
         if (currTimeSecsDiff / 1000 > 3600 * 3) {
@@ -152,9 +156,8 @@ class HomeScreenController extends GetxController {
         );
         if (index != -1 && index != 0) {
           final con = homeContentListMap.removeAt(index);
-          final items = (con["contents"] as List)
-              .whereType<MediaItem>()
-              .toList();
+          final items =
+              (con["contents"] as List).whereType<MediaItem>().toList();
           if (items.isNotEmpty) {
             quickPicks.value = QuickPicks(items, title: con["title"]);
           }
@@ -235,9 +238,8 @@ class HomeScreenController extends GetxController {
         );
         if (index != -1) {
           final con = homeContentListMap.removeAt(index);
-          final items = (con["contents"] as List)
-              .whereType<MediaItem>()
-              .toList();
+          final items =
+              (con["contents"] as List).whereType<MediaItem>().toList();
           if (items.isNotEmpty) {
             quickPicks.value = QuickPicks(items, title: "Quick picks");
           }
@@ -245,9 +247,8 @@ class HomeScreenController extends GetxController {
           for (int i = 0; i < homeContentListMap.length; i++) {
             final shelf = homeContentListMap[i];
             if (shelf['contents'] is List) {
-              final items = (shelf['contents'] as List)
-                  .whereType<MediaItem>()
-                  .toList();
+              final items =
+                  (shelf['contents'] as List).whereType<MediaItem>().toList();
               if (items.isNotEmpty) {
                 homeContentListMap.removeAt(i);
                 quickPicks.value = QuickPicks(
@@ -266,9 +267,8 @@ class HomeScreenController extends GetxController {
         for (int i = 0; i < homeContentListMap.length; i++) {
           final shelf = homeContentListMap[i];
           if (shelf['contents'] is List) {
-            final items = (shelf['contents'] as List)
-                .whereType<MediaItem>()
-                .toList();
+            final items =
+                (shelf['contents'] as List).whereType<MediaItem>().toList();
             if (items.isNotEmpty) {
               homeContentListMap.removeAt(i);
               quickPicks.value = QuickPicks(
@@ -347,9 +347,8 @@ class HomeScreenController extends GetxController {
         if (quickPicks_ == null && homeContentListMap.isNotEmpty) {
           for (final shelf in homeContentListMap) {
             if (shelf['contents'] is List) {
-              final items = (shelf['contents'] as List)
-                  .whereType<MediaItem>()
-                  .toList();
+              final items =
+                  (shelf['contents'] as List).whereType<MediaItem>().toList();
               if (items.isNotEmpty) {
                 quickPicks_ = QuickPicks(
                   items,
@@ -382,14 +381,12 @@ class HomeScreenController extends GetxController {
         if (quickPicks_ == null && charts.isNotEmpty) {
           for (final c in charts) {
             if (c['contents'] is List) {
-              final items = (c['contents'] as List)
-                  .whereType<MediaItem>()
-                  .toList();
+              final items =
+                  (c['contents'] as List).whereType<MediaItem>().toList();
               if (items.isNotEmpty) {
                 quickPicks_ = QuickPicks(
                   items,
-                  title:
-                      c['title'] ??
+                  title: c['title'] ??
                       (val == "TMV" ? "Top Music Videos" : "Trending"),
                 );
                 break;
@@ -458,9 +455,8 @@ class HomeScreenController extends GetxController {
           if (homeContentListMap.isNotEmpty) {
             for (final shelf in homeContentListMap) {
               if (shelf['contents'] is List) {
-                final items = (shelf['contents'] as List)
-                    .whereType<MediaItem>()
-                    .toList();
+                final items =
+                    (shelf['contents'] as List).whereType<MediaItem>().toList();
                 if (items.isNotEmpty) {
                   quickPicks_ = QuickPicks(
                     items,
@@ -504,9 +500,8 @@ class HomeScreenController extends GetxController {
         if (value != null && value is List && value.isNotEmpty) {
           for (final section in value) {
             if (section is Map && section['contents'] is List) {
-              final items = (section['contents'] as List)
-                  .whereType<MediaItem>()
-                  .toList();
+              final items =
+                  (section['contents'] as List).whereType<MediaItem>().toList();
               if (items.isNotEmpty) {
                 songSuggestions = items;
                 sectionTitle = section['title']?.toString() ?? "Similar Songs";
