@@ -65,6 +65,12 @@ jobs:
             KEY_PASS="$KEY_PASSWORD"
             KEY_ALIAS_VALUE="${KEY_ALIAS:-harmonymusic}"
             SIGNING_MODE="release"
+          elif [[ -f "android/app/upload-keystore.jks" ]]; then
+            echo "Using repository release keystore (upload-keystore.jks)."
+            STORE_PASSWORD="${KEY_STORE_PASSWORD:-HarmonyMusicPass2026}"
+            KEY_PASS="${KEY_PASSWORD:-HarmonyMusicPass2026}"
+            KEY_ALIAS_VALUE="${KEY_ALIAS:-harmonymusic}"
+            SIGNING_MODE="release"
           else
             echo "Generating a temporary keystore for this non-release build."
             rm -f android/app/upload-keystore.jks
