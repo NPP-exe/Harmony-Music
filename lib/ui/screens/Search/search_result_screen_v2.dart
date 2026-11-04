@@ -79,6 +79,11 @@ class SearchResultScreenBN extends StatelessWidget {
                       );
                     } else if (searchResScrController
                         .isResultContentFetced.isTrue) {
+                      if (searchResScrController.tabController == null) {
+                        return const Center(
+                          child: LoadingIndicator(),
+                        );
+                      }
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
