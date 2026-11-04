@@ -119,7 +119,6 @@ class SearchResultScreenController extends GetxController
 
       //Case if bottom nav used
       if (GetPlatform.isDesktop ||
-          GetPlatform.isWeb ||
           Get.find<SettingsScreenController>().isBottomNavBarEnabled.isTrue) {
         // assiging init val
         for (var element in railItems) {

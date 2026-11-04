@@ -441,36 +441,6 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     return false;
   }
 
-  AudioSource _fileAudioSource(String path, MediaItem tag) {
-    var cleanPath = path;
-    if (cleanPath.startsWith('file://')) {
-      cleanPath = cleanPath.replaceFirst('file://', '');
-    } else if (cleanPath.startsWith('file:')) {
-      cleanPath = cleanPath.replaceFirst('file:', '');
-    }
-    // Handle Windows paths with leading slash like /C:/
-    if (cleanPath.startsWith('/') &&
-        cleanPath.length > 2 &&
-        cleanPath[2] == ':') {
-      cleanPath = cleanPath.substring(1);
-    }
-
-    if (!GetPlatform.isWeb && (GetPlatform.isWindows || GetPlatform.isLinux)) {
-      // On Windows/Linux desktop, just_audio_media_kit is used as the platform player.
-      // just_audio_media_kit automatically prepends 'file://' to any URI that doesn't
-      // contain 'http'. Passing Uri.file() produces 'file:///...', which results in
-      // 'file://file:///...' and causes media_kit/libmpv to fail with '/file:/...'.
-      // Passing Uri.parse() with the raw file path ensures just_audio_media_kit creates
-      // a single, valid 'file://...' URI for libmpv.
-      final normalized = cleanPath.replaceAll(r'\', '/');
-      return AudioSource.uri(
-        Uri.parse(Uri.encodeFull(normalized)),
-        tag: tag,
-      );
-    }
-    return AudioSource.uri(Uri.file(cleanPath), tag: tag);
-  }
-
   AudioSource _createAudioSource(MediaItem mediaItem) {
     final url = mediaItem.extras!['url'] as String;
     if (!GetPlatform.isWeb &&
@@ -487,12 +457,12 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     }
 
     if (!GetPlatform.isWeb &&
-        (File(url).existsSync() ||
-            url.startsWith('file://') ||
-            url.startsWith('file:'))) {
+        (File(url).existsSync() || url.startsWith('file://'))) {
       printINFO("Playing Using AudioSource.uri(file)");
       isPlayingUsingLockCachingSource = false;
-      return _fileAudioSource(url, mediaItem);
+      final cleanPath =
+          url.startsWith('file://') ? url.replaceFirst('file://', '') : url;
+      return AudioSource.uri(Uri.file(cleanPath), tag: mediaItem);
     }
 
     printINFO("Playing Using AudioSource.uri");
@@ -694,7 +664,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           currentSongUrl = localUrl;
           isPlayingUsingLockCachingSource = false;
           await _playList.add(
-            _fileAudioSource(localUrl, currentSong),
+            AudioSource.uri(Uri.file(localUrl), tag: currentSong),
           );
           await _initializeWebPlaylist();
           playbackState.add(
@@ -783,7 +753,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         currentSongUrl = localUrl;
         isPlayingUsingLockCachingSource = false;
         await _playList.add(
-          _fileAudioSource(localUrl, localSong),
+          AudioSource.uri(Uri.file(localUrl), tag: localSong),
         );
         await _initializeWebPlaylist();
         isSongLoading = false;
