@@ -78,7 +78,8 @@ class SearchResultScreenBN extends StatelessWidget {
                         ),
                       );
                     } else if (searchResScrController
-                        .isResultContentFetced.isTrue) {
+                            .isResultContentFetced.isTrue &&
+                        searchResScrController.tabController != null) {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
@@ -92,9 +93,10 @@ class SearchResultScreenBN extends StatelessWidget {
                               contentPadding:
                                   const EdgeInsets.only(left: 15, right: 15),
                               backgroundColor: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.color!,
+                                      .textTheme
+                                      .titleMedium
+                                      ?.color ??
+                                  Theme.of(context).colorScheme.onSurface,
                               unselectedBackgroundColor:
                                   Theme.of(context).colorScheme.secondary,
                               borderWidth: 0,
@@ -107,9 +109,10 @@ class SearchResultScreenBN extends StatelessWidget {
                               ),
                               unselectedLabelStyle: TextStyle(
                                 color: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.color!,
+                                        .textTheme
+                                        .titleMedium
+                                        ?.color ??
+                                    Theme.of(context).colorScheme.onSurface,
                                 fontWeight: FontWeight.bold,
                               ),
                               // Add your tabs here

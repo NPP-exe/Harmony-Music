@@ -441,6 +441,16 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     return false;
   }
 
+  AudioSource _createLocalAudioSource(String filePath, MediaItem item) {
+    final cleanPath = filePath.startsWith('file://')
+        ? filePath.replaceFirst('file://', '')
+        : filePath;
+    final uri = GetPlatform.isDesktop
+        ? Uri.parse(cleanPath)
+        : Uri.file(cleanPath);
+    return AudioSource.uri(uri, tag: item);
+  }
+
   AudioSource _createAudioSource(MediaItem mediaItem) {
     final url = mediaItem.extras!['url'] as String;
     if (!GetPlatform.isWeb &&
@@ -460,9 +470,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         (File(url).existsSync() || url.startsWith('file://'))) {
       printINFO("Playing Using AudioSource.uri(file)");
       isPlayingUsingLockCachingSource = false;
-      final cleanPath =
-          url.startsWith('file://') ? url.replaceFirst('file://', '') : url;
-      return AudioSource.uri(Uri.file(cleanPath), tag: mediaItem);
+      return _createLocalAudioSource(url, mediaItem);
     }
 
     printINFO("Playing Using AudioSource.uri");
@@ -664,7 +672,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           currentSongUrl = localUrl;
           isPlayingUsingLockCachingSource = false;
           await _playList.add(
-            AudioSource.uri(Uri.file(localUrl), tag: currentSong),
+            _createLocalAudioSource(localUrl, currentSong),
           );
           await _initializeWebPlaylist();
           playbackState.add(
@@ -753,7 +761,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         currentSongUrl = localUrl;
         isPlayingUsingLockCachingSource = false;
         await _playList.add(
-          AudioSource.uri(Uri.file(localUrl), tag: localSong),
+          _createLocalAudioSource(localUrl, localSong),
         );
         await _initializeWebPlaylist();
         isSongLoading = false;
