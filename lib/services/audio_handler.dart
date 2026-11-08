@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audio_service/audio_service.dart';
 // ignore: depend_on_referenced_packages
@@ -29,9 +28,6 @@ import '/services/utils.dart';
 import '../ui/screens/Settings/settings_screen_controller.dart';
 import '../ui/screens/Library/library_controller.dart';
 import 'harmony_audio_media_kit.dart';
-
-// ignore: unused_import, implementation_imports, depend_on_referenced_packages
-import "package:media_kit/src/player/platform_player.dart" show MPVLogLevel;
 
 Future<AudioHandler> initAudioService() async {
   if (!GetPlatform.isWeb && (GetPlatform.isWindows || GetPlatform.isLinux)) {
