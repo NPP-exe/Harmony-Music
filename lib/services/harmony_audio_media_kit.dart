@@ -1,9 +1,8 @@
+// ignore_for_file: depend_on_referenced_packages, avoid_dynamic_calls, implementation_imports
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-// ignore: depend_on_referenced_packages
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
-// ignore: depend_on_referenced_packages
 import 'package:media_kit/media_kit.dart';
 
 class HarmonyAudioMediaKit extends JustAudioPlatform {
@@ -152,12 +151,12 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
   }
 
   Future<void> _applyMpvAudioOptions() async {
-    if (_player.platform is NativePlayer) {
-      final np = _player.platform as NativePlayer;
+    final platform = _player.platform;
+    if (platform != null) {
       try {
-        await np.setProperty('sub-auto', 'no');
-        await np.setProperty('autoload-files', 'no');
-        await np.setProperty('cache-on-disk', 'no');
+        await (platform as dynamic).setProperty('sub-auto', 'no');
+        await (platform as dynamic).setProperty('autoload-files', 'no');
+        await (platform as dynamic).setProperty('cache-on-disk', 'no');
       } catch (_) {}
     }
   }
@@ -292,6 +291,12 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
       _player
           .move(request.currentIndex, request.newIndex)
           .then((_) => ConcatenatingMoveResponse());
+
+  @override
+  Future<DisposeResponse> dispose(DisposeRequest request) async {
+    await release();
+    return DisposeResponse();
+  }
 
   Future<void> release() async {
     await _player.dispose();
