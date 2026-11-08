@@ -28,11 +28,15 @@ import '/models/media_Item_builder.dart';
 import '/services/utils.dart';
 import '../ui/screens/Settings/settings_screen_controller.dart';
 import '../ui/screens/Library/library_controller.dart';
+import 'harmony_audio_media_kit.dart';
 
 // ignore: unused_import, implementation_imports, depend_on_referenced_packages
 import "package:media_kit/src/player/platform_player.dart" show MPVLogLevel;
 
 Future<AudioHandler> initAudioService() async {
+  if (!GetPlatform.isWeb && (GetPlatform.isWindows || GetPlatform.isLinux)) {
+    HarmonyAudioMediaKit.ensureInitialized();
+  }
   return await AudioService.init(
     builder: () => MyAudioHandler(),
     config: const AudioServiceConfig(
@@ -78,8 +82,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
 
   MyAudioHandler() {
     if (!GetPlatform.isWeb && (GetPlatform.isWindows || GetPlatform.isLinux)) {
-      JustAudioMediaKit.title = 'Harmony music';
-      JustAudioMediaKit.protocolWhitelist = const ['http', 'https', 'file'];
+      HarmonyAudioMediaKit.ensureInitialized();
     }
     _mediaLibrary = MediaLibrary();
     _player = AudioPlayer(
@@ -252,6 +255,15 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
       },
       onError: (Object e, StackTrace st) async {
         printERROR('An error occurred during playback: $e');
+        final errStr = e.toString().toLowerCase();
+        // Ignore non-fatal subtitle, cache, or external file errors so playback is never interrupted
+        if (errStr.contains('external file') ||
+            errStr.contains('.lrc') ||
+            errStr.contains('file cache') ||
+            errStr.contains('osc')) {
+          return;
+        }
+
         Duration curPos = _player.position;
         await _player.stop();
 
@@ -262,15 +274,19 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           return;
         }
 
-        // Re-fetch URL and resume from saved position
-        await customAction("playByIndex", {
-          'index': currentIndex,
-          'newUrl': true,
-        });
-        if (curPos.inSeconds > 2) {
-          await Future.delayed(const Duration(milliseconds: 600));
-          if (_player.duration != null && curPos < _player.duration!) {
-            await _player.seek(curPos);
+        // Only re-fetch URL for online streams; never infinite-retry local/downloaded files
+        if (currentSongUrl != null &&
+            !currentSongUrl!.startsWith('file') &&
+            !File(currentSongUrl!).existsSync()) {
+          await customAction("playByIndex", {
+            'index': currentIndex,
+            'newUrl': true,
+          });
+          if (curPos.inSeconds > 2) {
+            await Future.delayed(const Duration(milliseconds: 600));
+            if (_player.duration != null && curPos < _player.duration!) {
+              await _player.seek(curPos);
+            }
           }
         }
       },
@@ -445,10 +461,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     final cleanPath = filePath.startsWith('file://')
         ? filePath.replaceFirst('file://', '')
         : filePath;
-    final uri = GetPlatform.isDesktop
-        ? Uri.parse(cleanPath)
-        : Uri.file(cleanPath);
-    return AudioSource.uri(uri, tag: item);
+    return AudioSource.uri(Uri.file(cleanPath), tag: item);
   }
 
   AudioSource _createAudioSource(MediaItem mediaItem) {
@@ -505,22 +518,13 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   Future<void> play() async {
     if (currentSongUrl == null ||
         (GetPlatform.isDesktop &&
-            (_player.duration == null ||
-                _player.duration?.inMilliseconds == 0))) {
-      await customAction("playByIndex", {'index': currentIndex});
+            _player.duration == null &&
+            _player.position == Duration.zero)) {
+      if (currentIndex != null && queue.value.isNotEmpty) {
+        await customAction("playByIndex", {'index': currentIndex});
+      }
       return;
     }
-    // Workaround for network error pause in case of PlayingUsingLockCachingSource
-    // if (isPlayingUsingLockCachingSource && networkErrorPause) {
-    //   await _player.play();
-    //   Future.delayed(const Duration(seconds: 2)).then((value) {
-    //     if (_player.playing) {
-    //       networkErrorPause = false;
-    //     }
-    //   });
-    //   await _player.play();
-    //   return;
-    // }
     await _playPlayer();
   }
 
@@ -751,6 +755,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         playbackState.add(
           playbackState.value.copyWith(
             processingState: AudioProcessingState.loading,
+            queueIndex: currentIndex,
           ),
         );
         if (_playList.children.isNotEmpty) {
@@ -764,6 +769,9 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           _createLocalAudioSource(localUrl, localSong),
         );
         await _initializeWebPlaylist();
+        playbackState.add(
+          playbackState.value.copyWith(queueIndex: currentIndex),
+        );
         isSongLoading = false;
         await _playPlayer();
         break;
