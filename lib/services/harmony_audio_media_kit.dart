@@ -91,7 +91,7 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
         protocolWhitelist: const ['http', 'https', 'file'],
         title: 'Harmony Music',
         bufferSize: 32 * 1024 * 1024,
-        logLevel: MPVLogLevel.none,
+        logLevel: MPVLogLevel.error,
         // Setting osc to true prevents media_kit from attempting to pass osc=no,
         // which fails with "_setProperty(osc, 1)" on audio-only libmpv builds.
         osc: true,
