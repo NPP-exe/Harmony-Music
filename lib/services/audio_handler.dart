@@ -454,9 +454,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   }
 
   AudioSource _createLocalAudioSource(String filePath, MediaItem item) {
-    final cleanPath = filePath.startsWith('file://')
-        ? filePath.replaceFirst('file://', '')
-        : filePath;
+    final cleanPath = cleanLocalFilePath(filePath);
     return AudioSource.uri(Uri.file(cleanPath), tag: item);
   }
 
@@ -475,11 +473,15 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
       );
     }
 
+    final cleanPath = cleanLocalFilePath(url);
     if (!GetPlatform.isWeb &&
-        (File(url).existsSync() || url.startsWith('file://'))) {
+        (!url.startsWith('http://') && !url.startsWith('https://') ||
+            File(cleanPath).existsSync() ||
+            url.startsWith('file:') ||
+            url.contains('/file:'))) {
       printINFO("Playing Using AudioSource.uri(file)");
       isPlayingUsingLockCachingSource = false;
-      return _createLocalAudioSource(url, mediaItem);
+      return _createLocalAudioSource(cleanPath, mediaItem);
     }
 
     printINFO("Playing Using AudioSource.uri");

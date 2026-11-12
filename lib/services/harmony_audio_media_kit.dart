@@ -5,6 +5,33 @@ import 'package:flutter/services.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:media_kit/media_kit.dart';
 
+/// Sanitizes a file path or file:// URI to a clean, absolute local filesystem path.
+/// Handles redundant or malformed scheme prefixes (such as '/file:/...', 'file://file:///...'),
+/// URL percent-encoding (spaces, non-ASCII), and ensures proper native platform directory separators.
+String cleanLocalFilePath(String pathOrUri) {
+  String s = pathOrUri.trim();
+  if (s.isEmpty) return s;
+
+  while (s.startsWith('file:') ||
+      s.startsWith('/file:') ||
+      s.startsWith(r'\file:')) {
+    s = s.replaceFirst(RegExp(r'^[/\\]*file:[/\\]*'), '');
+  }
+
+  try {
+    s = Uri.decodeFull(s);
+  } catch (_) {}
+
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+    s = s.replaceAll('/', r'\');
+  } else {
+    if (!s.startsWith('/')) {
+      s = '/$s';
+    }
+  }
+  return s;
+}
+
 class HarmonyAudioMediaKit extends JustAudioPlatform {
   static void ensureInitialized() {
     JustAudioPlatform.instance = HarmonyAudioMediaKit();
@@ -64,7 +91,7 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
         protocolWhitelist: const ['http', 'https', 'file'],
         title: 'Harmony Music',
         bufferSize: 32 * 1024 * 1024,
-        logLevel: MPVLogLevel.error,
+        logLevel: MPVLogLevel.none,
         // Setting osc to true prevents media_kit from attempting to pass osc=no,
         // which fails with "_setProperty(osc, 1)" on audio-only libmpv builds.
         osc: true,
@@ -157,6 +184,7 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
         await (platform as dynamic).setProperty('sub-auto', 'no');
         await (platform as dynamic).setProperty('autoload-files', 'no');
         await (platform as dynamic).setProperty('cache-on-disk', 'no');
+        await (platform as dynamic).setProperty('msg-level', 'all=no');
       } catch (_) {}
     }
   }
@@ -195,13 +223,12 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
 
   Media _convertAudioSourceIntoMediaKit(AudioSourceMessage audioSource) {
     if (audioSource is UriAudioSourceMessage) {
-      String url = audioSource.uri;
-      if (!url.startsWith('http://') &&
-          !url.startsWith('https://') &&
-          !url.startsWith('file://')) {
-        url = 'file://$url';
+      final raw = audioSource.uri;
+      if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        return Media(raw, httpHeaders: audioSource.headers);
       }
-      return Media(url, httpHeaders: audioSource.headers);
+      final cleanPath = cleanLocalFilePath(raw);
+      return Media(cleanPath, httpHeaders: audioSource.headers);
     } else {
       throw UnsupportedError(
           '${audioSource.runtimeType} is currently not supported');
