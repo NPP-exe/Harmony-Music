@@ -2,15 +2,17 @@ name: Nix maintenance
 
 on:
   release:
-    types: [published]
+    types: [published, released]
   push:
     branches: [main]
+    tags: ["v[0-9]*", "[0-9]*"]
     paths:
       - "pubspec.lock"
       - "pubspec.yaml"
       - "packages/youtube_explode_dart/pubspec.yaml"
   schedule:
     - cron: "23 5 1 * *"
+    - cron: "23 6 * * *"
   workflow_dispatch:
     inputs:
       operation:
@@ -28,14 +30,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: nix-maintenance-${{ github.event_name == 'release' && 'release' || github.event_name == 'push' && 'lockfile' || github.event_name == 'schedule' && 'nixpkgs' || inputs.operation }}
+  group: nix-maintenance-${{ github.event_name == 'workflow_dispatch' && inputs.operation || github.event_name == 'schedule' && github.event.schedule == '23 5 1 * *' && 'nixpkgs' || github.event_name == 'push' && github.ref_type == 'branch' && 'lockfile' || 'release' }}
   cancel-in-progress: false
 
 jobs:
   prepare:
     if: >-
-      github.event_name != 'release' ||
-      (!github.event.release.prerelease && !github.event.release.draft)
+      (github.event_name != 'release' ||
+      (!github.event.release.prerelease && !github.event.release.draft)) &&
+      (github.event_name != 'push' || !github.event.deleted)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,13 +59,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           WORKFLOW_EVENT: ${{ github.event_name }}
+          WORKFLOW_REF_TYPE: ${{ github.ref_type }}
+          WORKFLOW_SCHEDULE: ${{ github.event.schedule }}
           REQUESTED_OPERATION: ${{ inputs.operation }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           case "$WORKFLOW_EVENT" in
             release) operation=release ;;
-            push) operation=lockfile ;;
-            schedule) operation=nixpkgs ;;
+            push)
+              if [ "$WORKFLOW_REF_TYPE" = tag ]; then
+                operation=release
+              else
+                operation=lockfile
+              fi
+              ;;
+            schedule)
+              if [ "$WORKFLOW_SCHEDULE" = '23 5 1 * *' ]; then
+                operation=nixpkgs
+              else
+                operation=release
+              fi
+              ;;
             workflow_dispatch) operation="$REQUESTED_OPERATION" ;;
             *) exit 1 ;;
           esac

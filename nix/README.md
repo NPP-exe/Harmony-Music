@@ -137,10 +137,24 @@ Actions must be enabled:
 
 | Trigger | Proposed change |
 | --- | --- |
-| A stable release is published | Pin GitHub's latest stable release and resolve its release dependency locks |
+| A stable release is published or a prerelease becomes stable | Pin GitHub's latest stable release and resolve its release dependency locks |
+| A version tag is pushed (for example `v1.24.0` or `1.24.0`) | Check GitHub's latest published stable release and resolve its release dependency locks |
+| Daily, at 06:23 UTC | Reconcile the stable pin with GitHub's latest published stable release |
 | A development manifest or Pub lockfile changes on `main` | Resolve the checkout's Pub dependencies and synchronize its Pub and Nix locks |
 | Monthly, on the first day at 05:23 UTC | Update the nixpkgs input in `flake.lock` |
 | Manual workflow dispatch | Run any of these operations, optionally specifying a stable tag |
+
+Tags and GitHub releases are separate events. A tag push starts a release check,
+but a tag alone is not enough to update the stable package: its GitHub release
+must be published and must not be a draft or prerelease. Automatic checks select
+GitHub's latest stable release, not necessarily the pushed tag, so pushing an
+older tag does not roll the package back. Tag deletions do not start maintenance.
+
+The daily check also catches releases whose publication event did not trigger a
+run, including events suppressed when another workflow uses `GITHUB_TOKEN`.
+Forks do not receive release events from the upstream repository; the daily
+check still discovers upstream releases. GitHub may delay scheduled runs.
+If the published release is already pinned, the updater keeps its locks unchanged.
 
 Each operation reuses its own `automation/nix-*` branch and pull request. If the
 generated files already match the base branch, no new pull request is needed.
@@ -148,8 +162,9 @@ Updates to application releases, development dependencies, and nixpkgs remain
 separate so they can be reviewed and reverted independently.
 
 Concurrency groups follow the operation, including manual dispatches. A release
-and a lockfile update cannot replace each other's pending execution. Multiple
-pending requests for the same operation are coalesced to the newest request.
+check from a tag, release event, or daily schedule shares the release group.
+A release and a lockfile update cannot replace each other's pending execution.
+Multiple pending requests for the same operation are coalesced to the newest request.
 
 Preparation runs with read-only repository permissions. A separate publishing
 job downloads the generated data, checks an exact file allowlist, rejects
