@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
@@ -28,6 +29,8 @@ import '/services/utils.dart';
 import '../ui/screens/Settings/settings_screen_controller.dart';
 import '../ui/screens/Library/library_controller.dart';
 import 'harmony_audio_media_kit.dart';
+import 'next_stream_preloader.dart';
+import 'playback_operations.dart';
 
 Future<AudioHandler> initAudioService() async {
   if (!GetPlatform.isWeb && (GetPlatform.isWindows || GetPlatform.isLinux)) {
@@ -53,7 +56,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   // ignore: prefer_typing_uninitialized_variables
   dynamic currentIndex;
   int currentShuffleIndex = 0;
-  late String? currentSongUrl;
+  String? currentSongUrl;
   bool isPlayingUsingLockCachingSource = false;
   bool loopModeEnabled = false;
   bool queueLoopModeEnabled = false;
@@ -65,7 +68,11 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   // Watchdog for silent-audio bug: tracks position to detect frozen playback
   Duration _lastWatchdogPosition = Duration.zero;
   DateTime _lastWatchdogCheck = DateTime.now();
-  bool _watchdogRecovering = false;
+  final _operations = PlaybackOperations();
+  bool _wantsPlayback = false;
+  bool _automaticRetryUsed = false;
+  bool _disposed = false;
+  bool _nativePlaylistInitialized = false;
 
   // list of shuffled queue songs ids
   List<String> shuffledQueue = [];
@@ -75,23 +82,30 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     useLazyPreparation: false,
   );
   bool _webPlaylistInitialized = false;
+  final _nextStream = NextStreamPreloader();
 
-  MyAudioHandler() {
-    if (!GetPlatform.isWeb && (GetPlatform.isWindows || GetPlatform.isLinux)) {
+  MyAudioHandler(
+      {AudioPlayer? player,
+      String? cacheDirectory,
+      bool enableWatchdog = true}) {
+    if (player == null &&
+        !GetPlatform.isWeb &&
+        (GetPlatform.isWindows || GetPlatform.isLinux)) {
       HarmonyAudioMediaKit.ensureInitialized();
     }
     _mediaLibrary = MediaLibrary();
-    _player = AudioPlayer(
-      audioLoadConfiguration: const AudioLoadConfiguration(
-        androidLoadControl: AndroidLoadControl(
-          minBufferDuration: Duration(seconds: 50),
-          maxBufferDuration: Duration(seconds: 120),
-          bufferForPlaybackDuration: Duration(milliseconds: 50),
-          bufferForPlaybackAfterRebufferDuration: Duration(seconds: 2),
-        ),
-      ),
-    );
-    _createCacheDir();
+    _player = player ??
+        AudioPlayer(
+          audioLoadConfiguration: const AudioLoadConfiguration(
+            androidLoadControl: AndroidLoadControl(
+              minBufferDuration: Duration(seconds: 50),
+              maxBufferDuration: Duration(seconds: 120),
+              bufferForPlaybackDuration: Duration(milliseconds: 50),
+              bufferForPlaybackAfterRebufferDuration: Duration(seconds: 2),
+            ),
+          ),
+        );
+    _createCacheDir(cacheDirectory);
     _addEmptyList();
     _notifyAudioHandlerAboutPlaybackEvents();
     _listenToPlaybackForNextSong();
@@ -107,18 +121,18 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     loudnessNormalizationEnabled =
         appPrefsBox.get("loudnessNormalizationEnabled") ?? false;
     _listenForDurationChanges();
-    _startSilenceWatchdog();
+    if (enableWatchdog) _startSilenceWatchdog();
     if (GetPlatform.isAndroid) {
       _listenSessionIdStream();
     }
   }
 
-  Future<void> _createCacheDir() async {
+  Future<void> _createCacheDir(String? cacheDirectory) async {
     if (GetPlatform.isWeb) {
       _cacheDir = '';
       return;
     }
-    _cacheDir = (await getTemporaryDirectory()).path;
+    _cacheDir = cacheDirectory ?? (await getTemporaryDirectory()).path;
     if (!Directory("$_cacheDir/cachedSongs/").existsSync()) {
       Directory("$_cacheDir/cachedSongs/").createSync(recursive: true);
     }
@@ -128,71 +142,43 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   /// This detects YouTube stream URL expiry and other silent-audio failures.
   void _startSilenceWatchdog() {
     Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 4));
+      await Future<void>.delayed(const Duration(seconds: 4));
+      if (_disposed) return false;
       try {
-        if (_player.playing &&
+        final pos = _player.position;
+        if (_wantsPlayback &&
+            _player.playing &&
             !isSongLoading &&
-            !_watchdogRecovering &&
-            _player.processingState == ProcessingState.ready) {
-          final pos = _player.position;
-          final timeDiff =
-              DateTime.now().difference(_lastWatchdogCheck).inMilliseconds;
-          // If position has not moved more than 200ms in the 4-second window, audio is frozen
-          if (timeDiff > 0 &&
-              (pos - _lastWatchdogPosition).inMilliseconds.abs() < 200) {
-            printERROR(
-              '[Watchdog] Silent audio detected! Position frozen at $pos. Triggering recovery.',
-            );
-            _watchdogRecovering = true;
-            final savedPos = pos;
-
-            // 1. First attempt quick pause & play kick (fixes audio pipeline stalls)
-            await _player.pause();
-            await Future.delayed(const Duration(milliseconds: 300));
-            await _player.play();
-
-            // Check after 2 seconds if still frozen
-            await Future.delayed(const Duration(seconds: 2));
-            if (_player.playing &&
-                (_player.position - savedPos).inMilliseconds.abs() < 200) {
-              printINFO(
-                '[Watchdog] Quick kick failed, re-fetching stream URL.',
-              );
-              await customAction('playByIndex', {
-                'index': currentIndex,
-                'newUrl': true,
-              });
-              await Future.delayed(const Duration(milliseconds: 800));
-              if (_player.duration != null &&
-                  savedPos < _player.duration! &&
-                  savedPos.inSeconds > 2) {
-                await _player.seek(savedPos);
-              }
-            }
-            _watchdogRecovering = false;
-          }
-          _lastWatchdogPosition = pos;
-          _lastWatchdogCheck = DateTime.now();
-        } else {
-          // Reset baseline when not playing or loading
-          _lastWatchdogPosition = _player.position;
-          _lastWatchdogCheck = DateTime.now();
+            _player.processingState == ProcessingState.ready &&
+            DateTime.now().difference(_lastWatchdogCheck).inMilliseconds > 0 &&
+            (pos - _lastWatchdogPosition).inMilliseconds.abs() < 200) {
+          await _recoverPlayback(stalled: true);
         }
-      } catch (e) {
-        _watchdogRecovering = false;
-        printERROR('[Watchdog] Error: $e');
+        if (_wantsPlayback &&
+            _player.playing &&
+            !isSongLoading &&
+            (_player.position - _lastWatchdogPosition).inMilliseconds >= 200) {
+          _automaticRetryUsed = false;
+        }
+        _lastWatchdogPosition = _player.position;
+        _lastWatchdogCheck = DateTime.now();
+      } catch (error) {
+        printERROR('[Watchdog] Error: $error');
       }
-      return true; // keep looping
+      return !_disposed;
     });
   }
 
   void _addEmptyList() {
     if (GetPlatform.isWeb) return;
-    try {
-      _player.setAudioSource(_playList);
-    } catch (r) {
-      printERROR(r.toString());
-    }
+    unawaited(_operations.run(null, _initializeNativePlaylist).catchError(
+        (Object error) => printERROR('Could not initialize audio: $error')));
+  }
+
+  Future<void> _initializeNativePlaylist() async {
+    if (_nativePlaylistInitialized) return;
+    await _player.setAudioSource(_playList);
+    _nativePlaylistInitialized = true;
   }
 
   Future<void> _initializeWebPlaylist() async {
@@ -212,6 +198,12 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   void _notifyAudioHandlerAboutPlaybackEvents() {
     _player.playbackEventStream.listen(
       (PlaybackEvent event) {
+        if (_disposed ||
+            (!_wantsPlayback &&
+                playbackState.value.processingState ==
+                    AudioProcessingState.error)) {
+          return;
+        }
         final playing = _player.playing;
         playbackState.add(
           playbackState.value.copyWith(
@@ -260,31 +252,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           return;
         }
 
-        Duration curPos = _player.position;
-        await _player.stop();
-
-        if (isPlayingUsingLockCachingSource &&
-            e.toString().contains("Connection closed while receiving data")) {
-          await _player.seek(curPos, index: 0);
-          await _player.play();
-          return;
-        }
-
-        // Only re-fetch URL for online streams; never infinite-retry local/downloaded files
-        if (currentSongUrl != null &&
-            !currentSongUrl!.startsWith('file') &&
-            !File(currentSongUrl!).existsSync()) {
-          await customAction("playByIndex", {
-            'index': currentIndex,
-            'newUrl': true,
-          });
-          if (curPos.inSeconds > 2) {
-            await Future.delayed(const Duration(milliseconds: 600));
-            if (_player.duration != null && curPos < _player.duration!) {
-              await _player.seek(curPos);
-            }
-          }
-        }
+        await _recoverPlayback();
       },
     );
   }
@@ -298,7 +266,8 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
             ? 700
             : 0;
     _player.positionStream.listen((value) async {
-      if (_isTransitioningSong) return;
+      if (_isTransitioningSong || isSongLoading || !_wantsPlayback) return;
+      _prepareNextStream(value);
       if (_player.duration != null && _player.duration?.inSeconds != 0) {
         if (value.inMilliseconds >=
             (_player.duration!.inMilliseconds - playerDurationOffset)) {
@@ -308,15 +277,70 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     });
   }
 
+  void _prepareNextStream(Duration position) {
+    if (!(GetPlatform.isLinux || GetPlatform.isWindows) ||
+        isSongLoading ||
+        !_player.playing ||
+        loopModeEnabled ||
+        position < const Duration(seconds: 5)) {
+      return;
+    }
+    final duration = _player.duration;
+    if (duration == null || duration - position > const Duration(seconds: 45)) {
+      return;
+    }
+    final items = queue.value;
+    final index = currentIndex;
+    if (index is! int || index < 0 || index >= items.length) return;
+    int next;
+    if (shuffleModeEnabled) {
+      // Do not reshuffle or advance the real shuffle cursor to predict a track.
+      if (currentShuffleIndex + 1 >= shuffledQueue.length) return;
+      final id = shuffledQueue[currentShuffleIndex + 1];
+      next = items.indexWhere((item) => item.id == id);
+    } else {
+      next = index + 1 < items.length
+          ? index + 1
+          : queueLoopModeEnabled
+              ? 0
+              : -1;
+    }
+    if (next < 0 || next == index) return;
+    final song = items[next];
+    if (song.extras?['isLocal'] == true ||
+        song.id.startsWith('local_') ||
+        Hive.box('SongDownloads').containsKey(song.id) ||
+        (Hive.isBoxOpen('SongsCache') &&
+            Hive.box('SongsCache').containsKey(song.id))) {
+      return;
+    }
+    _nextStream.prepare(
+        song.id, () => checkNGetUrl(song.id, cacheResult: false));
+  }
+
+  Future<HMStreamingData> _streamForPlayback(String songId, bool newUrl) async {
+    if (newUrl) {
+      _nextStream.clear();
+    } else {
+      final prepared = await _nextStream.take(songId,
+          quality: Hive.box('AppPrefs').get('streamingQuality') ?? 1);
+      if (prepared != null) return prepared;
+    }
+    return checkNGetUrl(songId, generateNewUrl: newUrl, cacheResult: false);
+  }
+
   Future<void> _triggerNext() async {
-    if (_isTransitioningSong) return;
+    if (_disposed || _isTransitioningSong || isSongLoading || !_wantsPlayback) {
+      return;
+    }
     _isTransitioningSong = true;
     try {
       if (loopModeEnabled) {
-        await _player.seek(Duration.zero);
-        if (!_player.playing) {
-          _player.play();
-        }
+        final request = _operations.current;
+        await _operations.run(request, () async {
+          await _player.seek(Duration.zero);
+          if (_operations.isCurrent(request)) _startPlayback(request);
+        });
         return;
       }
       await skipToNext();
@@ -337,7 +361,12 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   void _listenForDurationChanges() {
     _player.durationStream.listen((duration) async {
       final currQueue = queue.value;
-      if (currentIndex == null || currQueue.isEmpty || duration == null) return;
+      if (isSongLoading ||
+          currentIndex == null ||
+          currQueue.isEmpty ||
+          duration == null) {
+        return;
+      }
       final currentSong = queue.value[currentIndex];
       if (currentSong.duration == null || currentIndex == 0) {
         final newMediaItem = currentSong.copyWith(duration: duration);
@@ -393,6 +422,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   Future<bool> _setAudioSourceWeb(
     MediaItem mediaItem,
     HMStreamingData streamInfo,
+    int request,
   ) async {
     final candidateAudios = <Audio>[
       if (streamInfo.audio != null) streamInfo.audio!,
@@ -413,6 +443,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
 
     Object? lastError;
     for (final candidate in candidateAudios) {
+      if (!_operations.isCurrent(request)) return false;
       final url = candidate.url;
       if (url.isEmpty || isExpired(url: url)) {
         continue;
@@ -423,16 +454,21 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         final updatedMediaItem = mediaItem.copyWith(extras: extras);
         currentSongUrl = url;
         this.mediaItem.add(updatedMediaItem);
-        final audioSource = AudioSource.uri(Uri.parse(url), tag: updatedMediaItem);
+        final audioSource =
+            AudioSource.uri(Uri.parse(url), tag: updatedMediaItem);
         await _player.setAudioSource(audioSource);
-        return true;
+        return _operations.isCurrent(request);
       } catch (e) {
         lastError = e;
-        printERROR('[Web playback] Failed to load candidate audio (${candidate.itag}): $e');
+        printERROR(
+            '[Web playback] Failed to load candidate audio (${candidate.itag}): $e');
       }
     }
 
-    printERROR('[Web playback] All candidate audio streams failed to load: $lastError');
+    if (!_operations.isCurrent(request)) return false;
+    _wantsPlayback = false;
+    printERROR(
+        '[Web playback] All candidate audio streams failed to load: $lastError');
     isSongLoading = false;
     currentSongUrl = null;
     playbackState.add(
@@ -512,49 +548,273 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     mediaItem.add(currentSong);
   }
 
+  Future<void> _selectTrack(
+    MediaItem song,
+    int index, {
+    bool localFile = false,
+    bool newUrl = false,
+    bool restoreSession = false,
+    Duration position = Duration.zero,
+    int? expectedGeneration,
+  }) async {
+    if (_disposed ||
+        (expectedGeneration != null &&
+            !_operations.isCurrent(expectedGeneration))) {
+      return;
+    }
+    final request = _operations.begin();
+    if (expectedGeneration == null) _automaticRetryUsed = false;
+    _wantsPlayback = !restoreSession;
+    currentIndex = index;
+    currentSongUrl = null;
+    isSongLoading = true;
+    mediaItem.add(song);
+    playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.loading, queueIndex: index));
+    final timing = Stopwatch()..start();
+    final local = localFile ||
+        song.extras?['isLocal'] == true ||
+        song.id.startsWith('local_');
+    try {
+      await _operations.run(request, () async {
+        if (!GetPlatform.isWeb) await _initializeNativePlaylist();
+        if (!_operations.isCurrent(request)) return;
+        await _player.pause();
+        if (!_operations.isCurrent(request)) return;
+        if (_playList.children.isNotEmpty) await _playList.clear();
+      });
+      if (!_operations.isCurrent(request)) return;
+      HMStreamingData? stream;
+      final String url;
+      if (local) {
+        url = song.extras!['url'] as String;
+      } else {
+        stream = await _streamForPlayback(song.id, newUrl);
+        if (!_operations.isCurrent(request)) return;
+        if (!stream.playable || stream.audio == null) {
+          await _failPlayback(request,
+              stream.statusMSG.isEmpty ? 'networkError' : stream.statusMSG);
+          return;
+        }
+        url = stream.audio!.url;
+        if (url.startsWith('https://') || url.startsWith('http://')) {
+          await Hive.box('SongsUrlCache').put(song.id, stream.toJson());
+          if (!_operations.isCurrent(request)) return;
+        }
+      }
+      printINFO('[Playback timing] ${song.id}: stream ready '
+          '${timing.elapsedMilliseconds} ms including source cleanup');
+      await _operations.run(request, () async {
+        currentSongUrl = url;
+        final selected = song.copyWith(extras: {
+          ...?song.extras,
+          'url': url,
+        });
+        final items = queue.value;
+        if (currentIndex is int &&
+            currentIndex >= 0 &&
+            currentIndex < items.length &&
+            items[currentIndex].id == song.id) {
+          items[currentIndex] = selected;
+        }
+        mediaItem.add(selected);
+        if (GetPlatform.isWeb && stream != null) {
+          if (!await _setAudioSourceWeb(selected, stream, request)) return;
+        } else {
+          if (local) isPlayingUsingLockCachingSource = false;
+          await _playList.add(local
+              ? _createLocalAudioSource(url, selected)
+              : _createAudioSource(selected));
+          if (!_operations.isCurrent(request)) return;
+          if (local) await _initializeWebPlaylist();
+        }
+        if (!_operations.isCurrent(request)) return;
+        if (loudnessNormalizationEnabled &&
+            GetPlatform.isAndroid &&
+            stream != null) {
+          _normalizeVolume(stream.audio!.loudnessDb);
+        }
+        if (restoreSession && !GetPlatform.isDesktop) {
+          await _player.load();
+          if (!_operations.isCurrent(request)) return;
+          await _player.seek(position);
+          if (!_operations.isCurrent(request)) return;
+        }
+        isSongLoading = false;
+        _lastWatchdogPosition = _player.position;
+        _lastWatchdogCheck = DateTime.now();
+        printINFO('[Playback timing] ${song.id}: source ready '
+            '${timing.elapsedMilliseconds} ms total');
+        if (!restoreSession) _startPlayback(request);
+      });
+    } catch (error) {
+      if (!_operations.isCurrent(request)) return;
+      printERROR('Could not load ${song.id}: $error');
+      // Some backends report an HTTP failure through the load Future itself.
+      // Use the same bounded recovery as asynchronous playback errors.
+      final url = currentSongUrl;
+      if (_wantsPlayback &&
+          !_automaticRetryUsed &&
+          url != null &&
+          (url.startsWith('https://') || url.startsWith('http://'))) {
+        isSongLoading = false;
+        await _recoverPlayback();
+      } else {
+        await _failPlayback(
+            request, local ? 'Unable to play this file.' : 'networkError');
+      }
+    }
+  }
+
+  Future<void> _failPlayback(int request, String message) async {
+    await _operations.run(request, () async {
+      try {
+        await _player.pause();
+      } catch (error) {
+        printERROR('Could not pause failed playback: $error');
+      }
+      if (!_operations.isCurrent(request)) return;
+      isSongLoading = false;
+      _wantsPlayback = false;
+      currentSongUrl = null;
+      playbackState.add(playbackState.value.copyWith(
+          playing: false,
+          processingState: AudioProcessingState.error,
+          errorCode: 500,
+          errorMessage: message));
+      if (Get.isRegistered<PlayerController>() && Get.context != null) {
+        Get.find<PlayerController>().notifyPlayError(message);
+      }
+    });
+  }
+
+  Future<void> _recoverPlayback({bool stalled = false}) async {
+    final request = _operations.current;
+    if (_disposed ||
+        !_wantsPlayback ||
+        isSongLoading ||
+        !_operations.beginRecovery(request)) {
+      return;
+    }
+    final index = currentIndex;
+    final items = queue.value;
+    final url = currentSongUrl;
+    final savedPosition = _player.position;
+    try {
+      if (index is! int || index < 0 || index >= items.length) return;
+      if (stalled && !_automaticRetryUsed) {
+        await _operations.run(request, _player.pause);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        if (!_operations.isCurrent(request) || !_wantsPlayback) return;
+        await _operations.run(request, () async => _startPlayback(request));
+        await Future<void>.delayed(const Duration(seconds: 2));
+        if (!_operations.isCurrent(request) || !_wantsPlayback) return;
+        if ((_player.position - savedPosition).inMilliseconds.abs() >= 200) {
+          return;
+        }
+      }
+      if (!_operations.isCurrent(request) || !_wantsPlayback) return;
+      final remote = url != null &&
+          (url.startsWith('http://') || url.startsWith('https://'));
+      if (!remote || _automaticRetryUsed) {
+        await _failPlayback(
+            request, remote ? 'networkError' : 'Unable to play this file.');
+        return;
+      }
+      _automaticRetryUsed = true;
+      _nextStream.clear();
+      await Hive.box('SongsUrlCache').delete(items[index].id);
+      if (!_operations.isCurrent(request) || !_wantsPlayback) return;
+      final reload = _selectTrack(items[index], index,
+          newUrl: true, expectedGeneration: request);
+      final replacement = _operations.current;
+      await reload;
+      if (savedPosition.inSeconds <= 2) return;
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+      if (!_operations.isCurrent(replacement) ||
+          !_wantsPlayback ||
+          isSongLoading) {
+        return;
+      }
+      await _operations.run(replacement, () async {
+        final duration = _player.duration;
+        if (duration != null && savedPosition < duration) {
+          await _player.seek(savedPosition);
+          if (_operations.isCurrent(replacement)) {
+            _lastWatchdogPosition = _player.position;
+            _lastWatchdogCheck = DateTime.now();
+          }
+        }
+      });
+    } catch (error) {
+      if (_operations.isCurrent(request)) {
+        await _failPlayback(request, 'networkError');
+      }
+      printERROR('Playback recovery failed: $error');
+    } finally {
+      _operations.endRecovery(request);
+    }
+  }
+
   @override
   Future<void> play() async {
+    if (_disposed || isSongLoading) return;
     if (currentSongUrl == null ||
         (GetPlatform.isDesktop &&
             _player.duration == null &&
             _player.position == Duration.zero)) {
       if (currentIndex != null && queue.value.isNotEmpty) {
-        await customAction("playByIndex", {'index': currentIndex});
+        await customAction('playByIndex', {'index': currentIndex});
       }
       return;
     }
-    await _playPlayer();
+    final request = _operations.begin();
+    _wantsPlayback = true;
+    _automaticRetryUsed = false;
+    await _operations.run(request, () async => _startPlayback(request));
   }
 
-  Future<void> _playPlayer() async {
+  void _startPlayback(int request) {
+    if (!_operations.isCurrent(request) || !_wantsPlayback) return;
+    // On some backends play() completes only when playback is paused/stopped.
+    // Never keep the mutation queue locked for that lifetime.
+    unawaited(
+        _playPlayer(request).catchError((Object error, StackTrace stack) async {
+      if (_operations.isCurrent(request)) await _recoverPlayback();
+    }));
+  }
+
+  Future<void> _playPlayer(int request) async {
     try {
       await _player.play();
     } catch (error, stackTrace) {
-      if (!GetPlatform.isWeb) {
-        Error.throwWithStackTrace(error, stackTrace);
-      }
-
-      printERROR('[Web playback] Could not start audio: $error');
-      await _player.pause();
-      isSongLoading = false;
-      if (Get.isRegistered<PlayerController>()) {
-        Get.find<PlayerController>().notifyPlayError(
-          'The browser could not start audio. Press Play to try again.',
-        );
-      }
+      if (!_operations.isCurrent(request)) return;
+      if (!GetPlatform.isWeb) Error.throwWithStackTrace(error, stackTrace);
+      await _failPlayback(request,
+          'The browser could not start audio. Press Play to try again.');
     }
   }
 
   @override
-  Future<void> pause() => _player.pause();
+  Future<void> pause() async {
+    if (_disposed) return;
+    final request = _operations.begin();
+    _wantsPlayback = false;
+    isSongLoading = false;
+    await _operations.run(request, _player.pause);
+  }
 
   @override
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) async {
+    if (_disposed || isSongLoading) return;
+    final request = _operations.begin();
+    await _operations.run(request, () => _player.seek(position));
+  }
 
   @override
   Future<void> skipToQueueItem(int index) async {
     if (index < 0 || index >= queue.value.length) return;
-    await customAction("playByIndex", {'index': index});
+    await customAction('playByIndex', {'index': index});
   }
 
   int _getNextSongIndex() {
@@ -603,24 +863,24 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   Future<void> skipToNext() async {
     final index = _getNextSongIndex();
     if (index != currentIndex) {
-      if (_player.position != Duration.zero) _player.seek(Duration.zero);
       await customAction("playByIndex", {'index': index});
     } else {
-      _player.seek(Duration.zero);
-      _player.pause();
+      await pause();
+      await seek(Duration.zero);
     }
   }
 
   @override
   Future<void> skipToPrevious() async {
     if (_player.position.inMilliseconds > 5000) {
-      _player.seek(Duration.zero);
+      await seek(Duration.zero);
       return;
     }
-    _player.seek(Duration.zero);
     final index = _getPrevSongIndex();
     if (index != currentIndex) {
       await customAction("playByIndex", {'index': index});
+    } else {
+      await seek(Duration.zero);
     }
   }
 
@@ -648,130 +908,27 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) async {
     switch (name) {
       case 'dispose':
-        await _player.dispose();
-        super.stop();
+        if (_disposed) return;
+        _disposed = true;
+        _wantsPlayback = false;
+        _nextStream.clear();
+        final request = _operations.begin();
+        await _operations.run(request, _player.dispose);
+        await super.stop();
         break;
 
       case 'playByIndex':
-        final songIndex = extras!['index'];
-        currentIndex = songIndex;
-        final isNewUrlReq = extras['newUrl'] ?? false;
-        final currentSong = queue.value[currentIndex];
-
-        if (currentSong.extras?['isLocal'] == true ||
-            currentSong.id.startsWith('local_')) {
-          isSongLoading = true;
-          playbackState.add(
-            playbackState.value.copyWith(
-              processingState: AudioProcessingState.loading,
-            ),
-          );
-          if (_playList.children.isNotEmpty) {
-            await _playList.clear();
-          }
-          mediaItem.add(currentSong);
-          final localUrl = currentSong.extras!['url'] as String;
-          currentSongUrl = localUrl;
-          isPlayingUsingLockCachingSource = false;
-          await _playList.add(
-            _createLocalAudioSource(localUrl, currentSong),
-          );
-          await _initializeWebPlaylist();
-          playbackState.add(
-            playbackState.value.copyWith(queueIndex: currentIndex),
-          );
-          isSongLoading = false;
-          await _playPlayer();
-          break;
-        }
-        final futureStreamInfo = checkNGetUrl(
-          currentSong.id,
-          generateNewUrl: isNewUrlReq,
-        );
-        final bool restoreSession = extras['restoreSession'] ?? false;
-        isSongLoading = true;
-        playbackState.add(
-          playbackState.value.copyWith(
-            processingState: AudioProcessingState.loading,
-          ),
-        );
-        if (_playList.children.isNotEmpty) {
-          await _playList.clear();
-        }
-
-        mediaItem.add(currentSong);
-        final streamInfo = await futureStreamInfo;
-        if (songIndex != currentIndex) {
-          return;
-        } else if (!streamInfo.playable) {
-          currentSongUrl = null;
-          isSongLoading = false;
-          Get.find<PlayerController>().notifyPlayError(streamInfo.statusMSG);
-          playbackState.add(
-            playbackState.value.copyWith(
-              processingState: AudioProcessingState.error,
-              errorCode: 404,
-              errorMessage: streamInfo.statusMSG,
-            ),
-          );
-          return;
-        }
-        currentSongUrl = currentSong.extras!['url'] = streamInfo.audio!.url;
-        playbackState.add(
-          playbackState.value.copyWith(queueIndex: currentIndex),
-        );
-        if (GetPlatform.isWeb) {
-          final loaded = await _setAudioSourceWeb(currentSong, streamInfo);
-          if (!loaded) return;
-        } else {
-          await _playList.add(_createAudioSource(currentSong));
-        }
-
-        isSongLoading = false;
-        if (loudnessNormalizationEnabled && GetPlatform.isAndroid) {
-          _normalizeVolume(streamInfo.audio!.loudnessDb);
-        }
-
-        if (restoreSession) {
-          if (!GetPlatform.isDesktop) {
-            final position = extras['position'];
-            await _player.load();
-            await _player.seek(Duration(milliseconds: position));
-            await _player.seek(Duration(milliseconds: position));
-          }
-        } else {
-          await _playPlayer();
-        }
+        final index = extras!['index'] as int;
+        if (index < 0 || index >= queue.value.length) return;
+        await _selectTrack(queue.value[index], index,
+            newUrl: extras['newUrl'] == true,
+            restoreSession: extras['restoreSession'] == true,
+            position: Duration(milliseconds: extras['position'] as int? ?? 0));
         break;
 
       case 'playLocalFile':
-        // Play a local audio file directly without fetching a YouTube stream
-        final localSong = extras!['song'] as MediaItem;
-        final localIndex = extras['index'] as int;
-        currentIndex = localIndex;
-        isSongLoading = true;
-        playbackState.add(
-          playbackState.value.copyWith(
-            processingState: AudioProcessingState.loading,
-            queueIndex: currentIndex,
-          ),
-        );
-        if (_playList.children.isNotEmpty) {
-          await _playList.clear();
-        }
-        mediaItem.add(localSong);
-        final localUrl = localSong.extras!['url'] as String;
-        currentSongUrl = localUrl;
-        isPlayingUsingLockCachingSource = false;
-        await _playList.add(
-          _createLocalAudioSource(localUrl, localSong),
-        );
-        await _initializeWebPlaylist();
-        playbackState.add(
-          playbackState.value.copyWith(queueIndex: currentIndex),
-        );
-        isSongLoading = false;
-        await _playPlayer();
+        await _selectTrack(extras!['song'] as MediaItem, extras['index'] as int,
+            localFile: true);
         break;
 
       case 'checkWithCacheDb':
@@ -807,41 +964,9 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         break;
 
       case 'setSourceNPlay':
-        final currMed = (extras!['mediaItem'] as MediaItem);
-        final futureStreamInfo = checkNGetUrl(currMed.id);
-        isSongLoading = true;
-        currentIndex = 0;
-        await _playList.clear();
-        mediaItem.add(currMed);
-        queue.add([currMed]);
-        final streamInfo = (await futureStreamInfo);
-        if (!streamInfo.playable) {
-          currentSongUrl = null;
-          isSongLoading = false;
-          Get.find<PlayerController>().notifyPlayError(streamInfo.statusMSG);
-          playbackState.add(
-            playbackState.value.copyWith(
-              processingState: AudioProcessingState.error,
-            ),
-          );
-          return;
-        }
-        currentSongUrl = currMed.extras!['url'] = streamInfo.audio!.url;
-
-        if (GetPlatform.isWeb) {
-          final loaded = await _setAudioSourceWeb(currMed, streamInfo);
-          if (!loaded) return;
-        } else {
-          await _playList.add(_createAudioSource(currMed));
-        }
-        isSongLoading = false;
-
-        // Normalize audio
-        if (loudnessNormalizationEnabled && GetPlatform.isAndroid) {
-          _normalizeVolume(streamInfo.audio!.loudnessDb);
-        }
-
-        await _playPlayer();
+        final song = extras!['mediaItem'] as MediaItem;
+        queue.add([song]);
+        await _selectTrack(song, 0);
         break;
 
       case 'toggleSkipSilence':
@@ -1052,8 +1177,13 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
 
   @override
   Future<void> stop() async {
-    await _player.stop();
-    return super.stop();
+    if (_disposed) return;
+    final request = _operations.begin();
+    _wantsPlayback = false;
+    isSongLoading = false;
+    _nextStream.clear();
+    await _operations.run(request, _player.stop);
+    if (_operations.isCurrent(request)) await super.stop();
   }
 
   // Work around used [useNewInstanceOfExplode = false] to Fix Connection closed before full header was received issue
@@ -1061,6 +1191,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     String songId, {
     bool generateNewUrl = false,
     bool offlineReplacementUrl = false,
+    bool cacheResult = true,
   }) async {
     printINFO("Requested id : $songId");
 
@@ -1151,7 +1282,10 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         return streamInfo;
       }
       //in case file doesnot found in storage, song will be played online
-      return checkNGetUrl(songId, offlineReplacementUrl: true);
+      return checkNGetUrl(songId,
+          offlineReplacementUrl: true,
+          generateNewUrl: generateNewUrl,
+          cacheResult: cacheResult);
     } else {
       if (GetPlatform.isWeb) {
         final videoId =
@@ -1179,7 +1313,9 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           () => getStreamInfo(songId, token),
         );
         streamInfo = HMStreamingData.fromJson(streamInfoJson);
-        if (streamInfo.playable) songsUrlCacheBox.put(songId, streamInfoJson);
+        if (streamInfo.playable && cacheResult) {
+          await songsUrlCacheBox.put(songId, streamInfoJson);
+        }
       }
 
       streamInfo.setQualityIndex(qualityIndex as int);

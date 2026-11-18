@@ -34,7 +34,9 @@ String cleanLocalFilePath(String pathOrUri) {
 
 class HarmonyAudioMediaKit extends JustAudioPlatform {
   static void ensureInitialized() {
-    JustAudioPlatform.instance = HarmonyAudioMediaKit();
+    if (JustAudioPlatform.instance is! HarmonyAudioMediaKit) {
+      JustAudioPlatform.instance = HarmonyAudioMediaKit();
+    }
   }
 
   final Map<String, HarmonyMediaKitPlayer> _players = {};
@@ -84,29 +86,42 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
   Duration _bufferedPosition = Duration.zero;
   Duration _position = Duration.zero;
   int _currentIndex = 0;
+  bool _loading = false;
+  bool _buffering = false;
+  bool _failed = false;
+  bool _released = false;
 
-  HarmonyMediaKitPlayer(super.id) {
-    _player = Player(
-      configuration: PlayerConfiguration(
-        protocolWhitelist: const ['http', 'https', 'file'],
-        title: 'Harmony Music',
-        bufferSize: 32 * 1024 * 1024,
-        logLevel: MPVLogLevel.error,
-        // Setting osc to true prevents media_kit from attempting to pass osc=no,
-        // which fails with "_setProperty(osc, 1)" on audio-only libmpv builds.
-        osc: true,
-        ready: () async {
-          await _applyMpvAudioOptions();
-          if (!_readyCompleter.isCompleted) {
-            _readyCompleter.complete();
-          }
-        },
-      ),
-    );
+  ProcessingStateMessage get _activeState => _failed
+      ? ProcessingStateMessage.idle
+      : _loading
+          ? ProcessingStateMessage.loading
+          : _buffering
+              ? ProcessingStateMessage.buffering
+              : ProcessingStateMessage.ready;
+
+  HarmonyMediaKitPlayer(super.id, {Player? player}) {
+    _player = player ??
+        Player(
+          configuration: PlayerConfiguration(
+            protocolWhitelist: const ['http', 'https', 'file'],
+            title: 'Harmony Music',
+            bufferSize: 32 * 1024 * 1024,
+            logLevel: MPVLogLevel.error,
+            // Setting osc to true prevents media_kit from attempting to pass osc=no,
+            // which fails with "_setProperty(osc, 1)" on audio-only libmpv builds.
+            osc: true,
+            ready: () async {
+              await _applyMpvAudioOptions();
+              if (!_readyCompleter.isCompleted) {
+                _readyCompleter.complete();
+              }
+            },
+          ),
+        );
 
     _streamSubscriptions = [
       _player.stream.duration.listen((duration) {
-        _processingState = ProcessingStateMessage.ready;
+        _processingState = _activeState;
         _updatePlaybackEvent(duration: duration);
       }),
       _player.stream.position.listen((position) {
@@ -114,9 +129,8 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
         _updatePlaybackEvent();
       }),
       _player.stream.buffering.listen((isBuffering) {
-        _processingState = isBuffering
-            ? ProcessingStateMessage.buffering
-            : ProcessingStateMessage.ready;
+        _buffering = isBuffering;
+        _processingState = _activeState;
         _updatePlaybackEvent();
       }),
       _player.stream.buffer.listen((buffer) {
@@ -124,7 +138,7 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
         _updatePlaybackEvent();
       }),
       _player.stream.playing.listen((playing) {
-        _processingState = ProcessingStateMessage.ready;
+        _processingState = _activeState;
         _dataController.add(PlayerDataMessage(playing: playing));
         _updatePlaybackEvent();
       }),
@@ -132,9 +146,8 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
         _dataController.add(PlayerDataMessage(volume: volume / 100.0));
       }),
       _player.stream.completed.listen((completed) {
-        _processingState = completed
-            ? ProcessingStateMessage.completed
-            : ProcessingStateMessage.ready;
+        _processingState =
+            completed ? ProcessingStateMessage.completed : _activeState;
         _updatePlaybackEvent();
       }),
       _player.stream.error.listen((error) {
@@ -142,13 +155,14 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
         // Ignore benign subtitle, cache, and external file errors
         if (errText.contains('external file') ||
             errText.contains('.lrc') ||
-            errText.contains('sub') ||
             errText.contains('file cache') ||
             errText.contains('osc')) {
           return;
         }
         _processingState = ProcessingStateMessage.idle;
-        _eventController.addError(error);
+        _failed = true;
+        _eventController
+            .addError(PlatformException(code: 'media_kit', message: error));
       }),
       _player.stream.playlist.listen((playlist) {
         _currentIndex = playlist.index;
@@ -175,6 +189,7 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
         }
       }),
     ];
+    if (player != null) _readyCompleter.complete();
   }
 
   Future<void> _applyMpvAudioOptions() async {
@@ -217,9 +232,36 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
     _currentIndex = request.initialIndex ?? 0;
     _bufferedPosition = Duration.zero;
     _position = Duration.zero;
-    _player.pause();
+    _loading = true;
+    _failed = false;
+    _buffering = false;
+    _processingState = ProcessingStateMessage.loading;
+    _updatePlaybackEvent();
+    try {
+      await _player.pause();
+      await _player.open(
+        Playlist(_convertSources(request.audioSourceMessage),
+            index: _currentIndex),
+        play: false,
+      );
+      if (request.initialPosition != null) {
+        await _player.seek(request.initialPosition!);
+      }
+    } catch (_) {
+      _failed = true;
+      rethrow;
+    } finally {
+      _loading = false;
+      _processingState = _activeState;
+      _updatePlaybackEvent();
+    }
     return LoadResponse(duration: _player.state.duration);
   }
+
+  List<Media> _convertSources(AudioSourceMessage source) =>
+      source is ConcatenatingAudioSourceMessage
+          ? source.children.expand(_convertSources).toList()
+          : [_convertAudioSourceIntoMediaKit(source)];
 
   Media _convertAudioSourceIntoMediaKit(AudioSourceMessage audioSource) {
     if (audioSource is UriAudioSourceMessage) {
@@ -297,17 +339,25 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<ConcatenatingInsertAllResponse> concatenatingInsertAll(
       ConcatenatingInsertAllRequest request) async {
+    if (request.children.isEmpty) return ConcatenatingInsertAllResponse();
     await _applyMpvAudioOptions();
-    await _player.open(_convertAudioSourceIntoMediaKit(request.children[0]));
+    final media = List<Media>.of(_player.state.playlist.medias)
+      ..insertAll(request.index, request.children.expand(_convertSources));
+    await _player.open(Playlist(media, index: _currentIndex),
+        play: _player.state.playing);
     return ConcatenatingInsertAllResponse();
   }
 
   @override
   Future<ConcatenatingRemoveRangeResponse> concatenatingRemoveRange(
       ConcatenatingRemoveRangeRequest request) async {
-    try {
-      await _player.remove(0);
-    } catch (_) {}
+    if (_released) return ConcatenatingRemoveRangeResponse();
+    for (var index = request.endIndex - 1;
+        index >= request.startIndex;
+        index--) {
+      if (_released) break;
+      await _player.remove(index);
+    }
 
     return ConcatenatingRemoveRangeResponse();
   }
@@ -326,9 +376,13 @@ class HarmonyMediaKitPlayer extends AudioPlayerPlatform {
   }
 
   Future<void> release() async {
-    await _player.dispose();
+    if (_released) return;
+    _released = true;
     for (final StreamSubscription subscription in _streamSubscriptions) {
       await subscription.cancel();
     }
+    await _player.dispose();
+    await _eventController.close();
+    await _dataController.close();
   }
 }
