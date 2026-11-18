@@ -179,7 +179,8 @@
               nativeBuildInputs = [ python ];
             }
             ''
-              python ${./nix}/test-maintenance.py
+              NIX_MAINTENANCE_WORKFLOW=${./.github/workflows/nix-maintenance.yml} \
+                python ${./nix}/test-maintenance.py
               touch "$out"
             '';
         workflows =
